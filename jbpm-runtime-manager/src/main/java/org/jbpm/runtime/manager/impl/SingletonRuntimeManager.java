@@ -25,25 +25,27 @@ import java.io.ObjectOutputStream;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.Context;
 import org.kie.api.runtime.manager.RuntimeEngine;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
 import org.kie.internal.runtime.manager.Disposable;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
 import org.kie.internal.runtime.manager.SessionFactory;
 import org.kie.internal.runtime.manager.TaskServiceFactory;
 import org.kie.internal.task.api.InternalTaskService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * RuntimeManager that is backed by "Singleton" strategy meaning only one <code>RuntimeEngine</code> instance will
- * exist for for given RuntimeManager instance. The RuntimeEngine will be synchronized to make sure it will work 
- * properly in multi-thread environments but might cause some performance issues due to sequential execution.
+ * This RuntimeManager is backed by a "Singleton" strategy, meaning that only one <code>RuntimeEngine</code> instance will
+ * exist for for the given RuntimeManager instance. The RuntimeEngine will be synchronized to make sure it will work 
+ * properly in multi-threaded environments. However, this might cause some performance issues due to sequential execution.
  * <br/>
- * Important aspect of this manager is that it will persists it's identifier as temporary file to keep track of the 
- * <code>KieSession</code> it was using to maintain its state - for example session state such as facts, etc.
- * the mentioned file is named as follows:<br>
+ * An important aspect of this manager is that it will persists it's identifier as a temporary file to keep track of the 
+ * <code>KieSession</code> it was using to maintain its state: for example, the session state including (drools) facts, etc.
+ * The mentioned file is named as follows:<br>
  * <code>manager.getIdentifier()-jbpmSessionId.ser</code>
- * for example for default named manager it will be:<br/>
+ * For example, for default named manager it will be:<br/>
  * default-singleton-jbpmSessionId.ser
  * <br/>
- * The location of the file can be one of the following, it is resolved in below order:
+ * The location of the file will be one of the following, it is resolved in below order:
  * <ul>
  *  <li>system property named: jbpm.data.dir</li>
  *  <li>system property named: jboss.server.data.dir - shall be used by default on JBoss AS</li>
@@ -53,6 +55,8 @@ import org.kie.internal.task.api.InternalTaskService;
  * will do the trick.
  */
 public class SingletonRuntimeManager extends AbstractRuntimeManager {
+	
+	private static final Logger logger = LoggerFactory.getLogger(SingletonRuntimeManager.class);
     
     private RuntimeEngine singleton;
     private SessionFactory factory;
@@ -71,12 +75,15 @@ public class SingletonRuntimeManager extends AbstractRuntimeManager {
     }
     
     public void init() {
-
+    	if (System.getProperty("org.kie.tx.lock.enabled") == null &&
+    			((SimpleRuntimeEnvironment)environment).getEnvironmentTemplate().get("TRANSACTION_LOCK_ENABLED") == null) {
+    		((SimpleRuntimeEnvironment)environment).getEnvironmentTemplate().set("TRANSACTION_LOCK_ENABLED", "true");
+    	}
         // TODO should we proxy/wrap the ksession so we capture dispose.destroy method calls?
         String location = getLocation();
         Integer knownSessionId = getPersistedSessionId(location, identifier);
         InternalTaskService internalTaskService = (InternalTaskService) taskServiceFactory.newTaskService();
-        configureRuntimeOnTaskService(internalTaskService);
+        
         
         if (knownSessionId > 0) {
             try {
@@ -92,14 +99,19 @@ public class SingletonRuntimeManager extends AbstractRuntimeManager {
             persistSessionId(location, identifier, singleton.getKieSession().getId());
         }
         ((RuntimeEngineImpl) singleton).setManager(this);
+        configureRuntimeOnTaskService(internalTaskService, singleton);
         registerItems(this.singleton);
         attachManager(this.singleton);
-        activeManagers.add(identifier);
+        this.registry.register(this);
     }
 
     @SuppressWarnings("rawtypes")
     @Override
-    public RuntimeEngine getRuntimeEngine(Context context) {        
+    public RuntimeEngine getRuntimeEngine(Context context) {  
+    	if (isClosed()) {
+    		throw new IllegalStateException("Runtime manager " + identifier + " is already closed");
+    	}
+    	checkPermission();
         // always return the same instance
         return this.singleton;
     }
@@ -107,6 +119,9 @@ public class SingletonRuntimeManager extends AbstractRuntimeManager {
 
     @Override
     public void validate(KieSession ksession, Context<?> context) throws IllegalStateException {
+    	if (isClosed()) {
+    		throw new IllegalStateException("Runtime manager " + identifier + " is already closed");
+    	}
         if (this.singleton != null && this.singleton.getKieSession().getId() != ksession.getId()) {
             throw new IllegalStateException("Invalid session was used for this context " + context);
         }
@@ -124,7 +139,11 @@ public class SingletonRuntimeManager extends AbstractRuntimeManager {
         }
         super.close();
         // dispose singleton session only when manager is closing
-        removeRuntimeFromTaskService((InternalTaskService) this.singleton.getTaskService());
+        try {
+        	removeRuntimeFromTaskService((InternalTaskService) this.singleton.getTaskService());
+        } catch (UnsupportedOperationException e) {
+        	logger.debug("Exception while closing task service, was it initialized? {}", e.getMessage());
+        }
         if (this.singleton instanceof Disposable) {
             ((Disposable) this.singleton).dispose();
         }

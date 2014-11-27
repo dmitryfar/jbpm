@@ -17,12 +17,9 @@
 package org.jbpm.services.task.identity;
 
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import javax.enterprise.inject.Alternative;
 
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
@@ -32,8 +29,7 @@ import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 import javax.naming.ldap.InitialLdapContext;
 
-import org.jbpm.shared.services.cdi.Selectable;
-import org.kie.internal.task.api.UserGroupCallback;
+import org.kie.api.task.UserGroupCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +49,7 @@ import org.slf4j.LoggerFactory;
  *  <li>ldap.user.attr.id (optional, if not given 'uid' will be used)</li>
  *  <li>ldap.roles.attr.id (optional, if not given 'cn' will be used)</li>
  *  <li>ldap.user.id.dn (optional, is user id a DN, instructs the callback to query for user DN before searching for roles, default false)</li>
+ *  <li>ldap.search.scope (optional, if not given 'OBJECT_SCOPE' will be used) possible values are: OBJECT_SCOPE, ONELEVEL_SCOPE, SUBTREE_SCOPE</li>
  *  <li>java.naming.factory.initial</li>
  *  <li>java.naming.security.authentication</li>
  *  <li>java.naming.security.protocol</li>
@@ -60,14 +57,11 @@ import org.slf4j.LoggerFactory;
  *  <li></li>
  * </ul>
  */
-
-@Alternative
-@Selectable
-public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
+public class LDAPUserGroupCallbackImpl extends AbstractUserGroupInfo implements UserGroupCallback {
     
     private static final Logger logger = LoggerFactory.getLogger(LDAPUserGroupCallbackImpl.class);
     
-    protected static final String DEFAULT_PROPERTIES_NAME = "/jbpm.usergroup.callback.properties";
+    protected static final String DEFAULT_PROPERTIES_NAME = "classpath:/jbpm.usergroup.callback.properties";
     
     public static final String BIND_USER = "ldap.bind.user";
     public static final String BIND_PWD = "ldap.bind.pwd";
@@ -80,31 +74,18 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
     public static final String USER_ATTR_ID = "ldap.user.attr.id";
     public static final String ROLE_ATTR_ID = "ldap.roles.attr.id";
     public static final String IS_USER_ID_DN = "ldap.user.id.dn";
+    public static final String SEARCH_SCOPE = "ldap.search.scope";
     
     protected static final String[] requiredProperties = {USER_CTX, ROLE_CTX, USER_FILTER, ROLE_FILTER, USER_ROLES_FILTER};
 
     
     private Properties config;
     
-    
-    public LDAPUserGroupCallbackImpl() {
+    //no no-arg constructor to prevent cdi from auto deploy
+    public LDAPUserGroupCallbackImpl(boolean activate) {
         String propertiesLocation = System.getProperty("jbpm.usergroup.callback.properties");
         
-        if (propertiesLocation == null) {
-            propertiesLocation = DEFAULT_PROPERTIES_NAME;
-        }
-        logger.debug("Callback properties will be loaded from {}", propertiesLocation);
-        InputStream in = this.getClass().getResourceAsStream(propertiesLocation);
-        if (in != null) {
-            config = new Properties();
-            try {
-                config.load(in);
-            } catch (IOException e) {
-                e.printStackTrace();
-                config = null;
-            }
-        }
-       
+        config = readProperties(propertiesLocation, DEFAULT_PROPERTIES_NAME);       
         validate();
     }
     
@@ -129,6 +110,10 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
             logger.debug("Seaching for user existence with filter {} on context {}", userFilter, userContext);            
             
             SearchControls constraints = new SearchControls();
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
             
             NamingEnumeration<SearchResult> result = ctx.search(userContext, userFilter, constraints);
             if (result.hasMore()) {
@@ -174,6 +159,10 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
             roleFilter = roleFilter.replaceAll("\\{0\\}", groupId);
             
             SearchControls constraints = new SearchControls();
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
             
             NamingEnumeration<SearchResult> result = ctx.search(roleContext, roleFilter, constraints);
             if (result.hasMore()) {
@@ -221,6 +210,10 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
                 
                 userFilter = userFilter.replaceAll("\\{0\\}", userId);
                 SearchControls constraints = new SearchControls();
+                String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+                if (searchScope != null) {
+                	constraints.setSearchScope(parseSearchScope(searchScope));
+                }
 
                 logger.debug("Searching for user DN with filter {} on context {}", userFilter, userContext);                
                 
@@ -240,7 +233,12 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
             
             roleFilter = roleFilter.replaceAll("\\{0\\}", (userDN != null ? userDN : userId));
             SearchControls constraints = new SearchControls();
-            logger.debug("Searching for groups for user with filter {} on context {}", roleFilter, roleContext);
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
+
+			logger.debug("Searching for groups for user with filter {} on context {}", roleFilter, roleContext);
             
             NamingEnumeration<SearchResult> result = ctx.search(roleContext, roleFilter, constraints);
             if (result.hasMore()) {
@@ -321,14 +319,14 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
         
         String binduser = this.config.getProperty(BIND_USER); 
 
-        if (binduser == null) {
+        if (binduser != null) {
 
             this.config.setProperty(Context.SECURITY_PRINCIPAL, binduser);
         }
 
         String bindpwd = this.config.getProperty(BIND_PWD); 
 
-        if (binduser == null) {
+        if (binduser != null) {
 
             this.config.setProperty(Context.SECURITY_CREDENTIALS, bindpwd);
         }
@@ -344,5 +342,16 @@ public class LDAPUserGroupCallbackImpl implements UserGroupCallback {
         return new InitialLdapContext(this.config, null);
     }
     
+	protected int parseSearchScope(String searchScope) {
+		logger.debug("Search scope: {}", searchScope);
+		if ("OBJECT_SCOPE".equals(searchScope))
+			return 0;
+		else if ("ONELEVEL_SCOPE".equals(searchScope))
+			return 1;
+		else if ("SUBTREE_SCOPE".equals(searchScope))
+			return 2;
 
+		// Default set to ONELEVEL_SCOPE
+		return 1;
+	}
 }

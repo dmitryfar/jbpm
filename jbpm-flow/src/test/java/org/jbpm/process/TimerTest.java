@@ -16,7 +16,8 @@
 
 package org.jbpm.process;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.drools.core.common.InternalWorkingMemory;
 import org.drools.core.runtime.process.ProcessRuntimeFactory;
@@ -31,12 +32,14 @@ import org.junit.Test;
 import org.kie.internal.KnowledgeBase;
 import org.kie.internal.KnowledgeBaseFactory;
 import org.kie.internal.runtime.StatefulKnowledgeSession;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TimerTest extends AbstractBaseTest  {
 
-    private static final Logger logger = LoggerFactory.getLogger(TimerTest.class);
+    public void addLogger() { 
+        logger = LoggerFactory.getLogger(this.getClass());
+    }
+    
 	private int counter = 0;
 	   
     static {

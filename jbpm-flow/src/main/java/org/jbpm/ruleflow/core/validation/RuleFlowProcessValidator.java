@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
-
-import org.drools.core.RuntimeDroolsException;
 import org.drools.core.process.core.Work;
 import org.drools.core.process.core.datatype.DataType;
 import org.drools.core.process.core.datatype.impl.type.ObjectDataType;
@@ -44,8 +42,30 @@ import org.jbpm.ruleflow.core.RuleFlowProcess;
 import org.jbpm.workflow.core.WorkflowProcess;
 import org.jbpm.workflow.core.impl.DroolsConsequenceAction;
 import org.jbpm.workflow.core.impl.NodeImpl;
-import org.jbpm.workflow.core.node.*;
+import org.jbpm.workflow.core.node.ActionNode;
+import org.jbpm.workflow.core.node.BoundaryEventNode;
+import org.jbpm.workflow.core.node.CatchLinkNode;
+import org.jbpm.workflow.core.node.CompositeNode;
+import org.jbpm.workflow.core.node.CompositeNode.CompositeNodeEnd;
 import org.jbpm.workflow.core.node.CompositeNode.NodeAndType;
+import org.jbpm.workflow.core.node.DynamicNode;
+import org.jbpm.workflow.core.node.EndNode;
+import org.jbpm.workflow.core.node.EventNode;
+import org.jbpm.workflow.core.node.EventSubProcessNode;
+import org.jbpm.workflow.core.node.FaultNode;
+import org.jbpm.workflow.core.node.ForEachNode;
+import org.jbpm.workflow.core.node.ForEachNode.ForEachJoinNode;
+import org.jbpm.workflow.core.node.ForEachNode.ForEachSplitNode;
+import org.jbpm.workflow.core.node.Join;
+import org.jbpm.workflow.core.node.MilestoneNode;
+import org.jbpm.workflow.core.node.RuleSetNode;
+import org.jbpm.workflow.core.node.Split;
+import org.jbpm.workflow.core.node.StartNode;
+import org.jbpm.workflow.core.node.StateNode;
+import org.jbpm.workflow.core.node.SubProcessNode;
+import org.jbpm.workflow.core.node.ThrowLinkNode;
+import org.jbpm.workflow.core.node.TimerNode;
+import org.jbpm.workflow.core.node.WorkItemNode;
 import org.kie.api.definition.process.Connection;
 import org.kie.api.definition.process.Node;
 import org.kie.api.definition.process.NodeContainer;
@@ -105,7 +125,7 @@ public class RuleFlowProcessValidator implements ProcessValidator {
         }
 
         // check start node of process
-        if ( process.getStart() == null && !process.isDynamic()) {
+        if ( process.getStartNodes().isEmpty() && !process.isDynamic()) {
             errors.add(new ProcessValidationErrorImpl(process,
                 "Process has no start node."));
         }
@@ -125,7 +145,7 @@ public class RuleFlowProcessValidator implements ProcessValidator {
 
         validateVariables(errors, process);
 
-        checkAllNodesConnectedToStart(process, errors);        
+        checkAllNodesConnectedToStart(process, process.isDynamic(), errors, process);        
 
         return errors.toArray(new ProcessValidationError[errors.size()]);
     }
@@ -324,23 +344,23 @@ public class RuleFlowProcessValidator implements ProcessValidator {
                 final WorkItemNode workItemNode = (WorkItemNode) node;
                 if (workItemNode.getFrom() == null && !acceptsNoIncomingConnections(node)) {
                     errors.add(new ProcessValidationErrorImpl(process,
-                        "WorkItem node '" + node.getName() + "' [" + node.getId() + "] has no incoming connection."));
+                        "Task node '" + node.getName() + "' [" + node.getId() + "] has no incoming connection."));
                 }
                 if (workItemNode.getTo() == null && !acceptsNoOutgoingConnections(node)) {
                     Object compensationObj = workItemNode.getMetaData(isForCompensation);
                     if( compensationObj == null || ! ((Boolean) compensationObj) ) {
                       errors.add(new ProcessValidationErrorImpl(process,
-                          "WorkItem node '" + node.getName() + "' [" + node.getId() + "] has no outgoing connection."));
+                          "Task node '" + node.getName() + "' [" + node.getId() + "] has no outgoing connection."));
                     }
                 }
                 if (workItemNode.getWork() == null) {
                     errors.add(new ProcessValidationErrorImpl(process,
-                        "WorkItem node '" + node.getName() + "' [" + node.getId() + "] has no work specified."));
+                        "Task node '" + node.getName() + "' [" + node.getId() + "] has no work specified."));
                 } else {
                     Work work = workItemNode.getWork();
-                    if (work.getName() == null) {
+                    if (work.getName() == null || work.getName().trim().length() == 0) {
                         errors.add(new ProcessValidationErrorImpl(process,
-                            "WorkItem node '" + node.getName() + "' [" + node.getId() + "] has no work name."));
+                            "Task node '" + node.getName() + "' [" + node.getId() + "] has no task type."));
                     }
                 }
                 if (workItemNode.getTimers() != null) {
@@ -436,6 +456,15 @@ public class RuleFlowProcessValidator implements ProcessValidator {
                        }
                    }
                    
+                } else {
+                	if( compositeNode.getIncomingConnections().size() == 0 ) { 
+                        errors.add(new ProcessValidationErrorImpl(process, 
+                                "Embedded subprocess '" + node.getName() + "' [" + node.getId() + "] does not have incoming connection." ));
+                    }
+                	if( compositeNode.getOutgoingConnections().size() == 0 ) { 
+                        errors.add(new ProcessValidationErrorImpl(process, 
+                                "Embedded subprocess '" + node.getName() + "' [" + node.getId() + "] does not have outgoing connection." ));
+                    }
                 }
                 validateNodes(compositeNode.getNodes(), errors, process);
             } else if (node instanceof EventNode) {
@@ -511,48 +540,68 @@ public class RuleFlowProcessValidator implements ProcessValidator {
 
     }
 
-    private void checkAllNodesConnectedToStart(final RuleFlowProcess process,
-                                               final List<ProcessValidationError> errors) {
+    private void checkAllNodesConnectedToStart(final NodeContainer container, boolean isDynamic,
+                                               final List<ProcessValidationError> errors, RuleFlowProcess process) {
         final Map<Node, Boolean> processNodes = new HashMap<Node, Boolean>();
-        final Node[] nodes = process.getNodes();
+        final Node[] nodes;
+        if (container instanceof CompositeNode) {
+        	nodes = ((CompositeNode) container).internalGetNodes();
+        } else {
+        	nodes = container.getNodes();
+        }
         List<Node> eventNodes = new ArrayList<Node>();
+        List<CompositeNode> compositeNodes = new ArrayList<CompositeNode>();
         for (int i = 0; i < nodes.length; i++) {
             final Node node = nodes[i];
             processNodes.put(node, Boolean.FALSE);
             if (node instanceof EventNode) {
             	eventNodes.add(node);
             }
+            if (node instanceof CompositeNode) {
+            	compositeNodes.add((CompositeNode) node);
+            }
         }
-        if (process.isDynamic()) {
-        	for (Node node: process.getNodes()) {
+        if (isDynamic) {
+        	for (Node node: nodes) {
         		if (node.getIncomingConnections(NodeImpl.CONNECTION_DEFAULT_TYPE).isEmpty()) {
         			processNode(node, processNodes);
         		}
         	}
         } else {
-	        final Node start = process.getStart();
+	        final List<Node> start = RuleFlowProcess.getStartNodes(nodes);
 	        if (start != null) {
-	            processNode(start, processNodes);
+	        	for (Node s : start) {
+	        		processNode(s, processNodes);
+	        	}
+	        }
+	        if (container instanceof CompositeNode) {
+	        	for (CompositeNode.NodeAndType nodeAndTypes: ((CompositeNode) container).getLinkedIncomingNodes().values()) {
+	        		processNode(nodeAndTypes.getNode(), processNodes);
+	        	}
 	        }
         }
         for (Node eventNode: eventNodes) {
             processNode(eventNode, processNodes);
         }
+        for (CompositeNode compositeNode: compositeNodes) {
+        	checkAllNodesConnectedToStart(
+    			compositeNode, compositeNode instanceof DynamicNode, errors, process);
+        }
         for ( final Iterator<Node> it = processNodes.keySet().iterator(); it.hasNext(); ) {
             final Node node = it.next();
             if (Boolean.FALSE.equals(processNodes.get(node)) && !(node instanceof StartNode) && !(node instanceof EventSubProcessNode)) {                
                 errors.add(new ProcessValidationErrorImpl(process,
-                "Node '" + node.getName() + "' [" + node.getId() + "] has no connection to the start node."));                
+            		"Node '" + node.getName() + "' [" + node.getId() + "] has no connection to the start node."));                
             }
         }
     }
 
     private void processNode(final Node node, final Map<Node, Boolean> nodes) {
-        if (!nodes.containsKey(node) ) {
-            throw new IllegalStateException("A process node is connected with a node that does not belong to the process: " + node.getName());
-        }
+    	if (!nodes.containsKey(node) && !((node instanceof CompositeNodeEnd) || (node instanceof ForEachSplitNode) || (node instanceof ForEachJoinNode))) {
+    	    throw new IllegalStateException("A process node is connected with a node that does not belong to the process: " + node.getName());
+    	}
         final Boolean prevValue = (Boolean) nodes.put(node, Boolean.TRUE);
-        if (prevValue == Boolean.FALSE) {
+        if (prevValue == Boolean.FALSE || prevValue == null) {
             for (final Iterator<List<Connection>> it = node.getOutgoingConnections().values().iterator(); it.hasNext(); ) {
                 final List<Connection> list = it.next();
                 for (final Iterator<Connection> it2 = list.iterator(); it2.hasNext(); ) {
@@ -605,7 +654,7 @@ public class RuleFlowProcessValidator implements ProcessValidator {
 	    	        default:
 	    	            break;
 	    	        }
-	    		} catch (RuntimeDroolsException e) {
+	    		} catch (RuntimeException e) {
 	    			errors.add(new ProcessValidationErrorImpl(process,
 	                    "Could not parse delay '" + timer.getDelay() + "' of node '" + node.getName() + "': " + e.getMessage()));
 	    		}
@@ -615,7 +664,7 @@ public class RuleFlowProcessValidator implements ProcessValidator {
     		if (!timer.getPeriod().contains("#{")) {
 	    		try {
 	    			TimeUtils.parseTimeString(timer.getPeriod());
-	    		} catch (RuntimeDroolsException e) {
+	    		} catch (RuntimeException e) {
 	    			errors.add(new ProcessValidationErrorImpl(process,
 	                    "Could not parse period '" + timer.getPeriod() + "' of node '" + node.getName() + "': " + e.getMessage()));
 	    		}
@@ -696,4 +745,9 @@ public class RuleFlowProcessValidator implements ProcessValidator {
             }
         }
     }
+
+	@Override
+	public boolean compilationSupported() {
+		return true;
+	}
 }

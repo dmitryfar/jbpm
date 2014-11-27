@@ -40,13 +40,19 @@ import org.jbpm.process.core.timer.GlobalSchedulerService;
 import org.jbpm.process.core.timer.NamedJobContext;
 import org.jbpm.process.instance.timer.TimerManager.ProcessJobContext;
 import org.kie.api.command.Command;
+import org.kie.api.runtime.Environment;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.manager.RuntimeManager;
 import org.kie.internal.command.Context;
+import org.kie.internal.runtime.manager.InternalRuntimeManager;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class GlobalTimerService implements TimerService, InternalSchedulerService, AcceptsTimerJobFactoryManager {
+	
+	private static final Logger logger = LoggerFactory.getLogger(GlobalTimerService.class);
     
     protected TimerJobFactoryManager jobFactoryManager;
     protected GlobalSchedulerService schedulerService;
@@ -85,8 +91,10 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
                 }
             }
             GlobalJobHandle jobHandle = (GlobalJobHandle) this.schedulerService.scheduleJob(job, ctx, trigger);
-            jobHandles.add(jobHandle);
-            
+            if (jobHandle != null) {
+            	jobHandles.add(jobHandle);
+            }
+                       
             return jobHandle;
         }
         GlobalJobHandle jobHandle = (GlobalJobHandle) this.schedulerService.scheduleJob(job, ctx, trigger);
@@ -102,15 +110,19 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         int sessionId = ((GlobalJobHandle) jobHandle).getSessionId();
         List<GlobalJobHandle> handles = timerJobsPerSession.get(sessionId);
         if (handles == null) {
+        	logger.debug("No known job handles for session {}", sessionId);
             return this.schedulerService.removeJob(jobHandle);
-        }
+        }       
+
         if (handles.contains(jobHandle)) {
+        	logger.debug("Found match so removing job handle {} from sessions {} handles", jobHandle, sessionId);
             handles.remove(jobHandle);
             if (handles.isEmpty()) {
                 timerJobsPerSession.remove(sessionId);
             }
             return this.schedulerService.removeJob(jobHandle);
         } else {
+        	logger.debug("No match for job handle {} within handles of session {}", jobHandle, sessionId);
             return false;
         }
     }
@@ -125,6 +137,15 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         //do nothing, this timer service is always active
 
     }
+    
+    public void destroy() {
+        Collection<List<GlobalJobHandle>> activeTimers = timerJobsPerSession.values();
+        for (List<GlobalJobHandle> handles : activeTimers) {
+            for (GlobalJobHandle handle : handles) {
+                this.schedulerService.removeJob(handle);
+            }
+        }
+    }
 
     @Override
     public long getTimeToNextJob() {
@@ -137,10 +158,13 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         List<GlobalJobHandle> jobs = timerJobsPerSession.get(id); {
             if (jobs != null) {
                 for (GlobalJobHandle job : jobs) {
-                    timers.add(job.getTimerJobInstance());
+                	if (job != null && schedulerService.isValid(job)) {
+                		timers.add(job.getTimerJobInstance());
+                	}
                 }
             }
-        }        
+        }   
+        logger.debug("Returning  timers {} for session {}", timers, id);
         return timers;
     }
 
@@ -155,7 +179,9 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
 
     @Override
     public void setTimerJobFactoryManager(TimerJobFactoryManager timerJobFactoryManager) {
-
+    	if (this.jobFactoryManager.getCommandService() == null) {
+    		this.jobFactoryManager.setCommandService(timerJobFactoryManager.getCommandService());
+    	}
     }
 
     @Override
@@ -171,23 +197,13 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         ProcessJobContext ctx = null;
         if (ctxorig instanceof ProcessJobContext) {
             ctx = (ProcessJobContext) ctxorig;
+        } else if(ctxorig instanceof NamedJobContext){
+        	return getCommandService(((NamedJobContext)ctxorig).getProcessInstanceId(), ctx);
         } else {
             return jobFactoryManager.getCommandService(); 
         }
         
-        RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get(ctx.getProcessInstanceId()));
-        if (runtime.getKieSession() instanceof CommandBasedStatefulKnowledgeSession) {
-            CommandBasedStatefulKnowledgeSession cmd = (CommandBasedStatefulKnowledgeSession) runtime.getKieSession();
-            ctx.setKnowledgeRuntime((InternalKnowledgeRuntime) ((KnowledgeCommandContext) cmd.getCommandService().getContext()).getKieSession());
-            
-            return new DisposableCommandService(cmd.getCommandService(), manager, runtime);
-        } else if (runtime.getKieSession() instanceof InternalKnowledgeRuntime) {
-            ctx.setKnowledgeRuntime((InternalKnowledgeRuntime) runtime.getKieSession());
-            
-            
-        }
-        
-        return jobFactoryManager.getCommandService();
+        return getCommandService(ctx.getProcessInstanceId(), ctx);
     }
     
     public String getTimerServiceId() {
@@ -200,6 +216,29 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
     
     public JobHandle buildJobHandleForContext(NamedJobContext ctx) {
         return this.schedulerService.buildJobHandleForContext(ctx);
+    }
+    
+    public InternalRuntimeManager getRuntimeManager() {
+    	return (InternalRuntimeManager) manager;
+    }
+    
+    protected CommandService getCommandService(Long processInstanceId, ProcessJobContext ctx) {
+    	RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get(processInstanceId));
+        if (runtime == null) {
+            throw new RuntimeException("No runtime engine found, could not be initialized yet");
+        }
+        
+        if (runtime.getKieSession() instanceof CommandBasedStatefulKnowledgeSession) {
+            CommandBasedStatefulKnowledgeSession cmd = (CommandBasedStatefulKnowledgeSession) runtime.getKieSession();
+            if (ctx != null) {
+            	ctx.setKnowledgeRuntime((InternalKnowledgeRuntime) ((KnowledgeCommandContext) cmd.getCommandService().getContext()).getKieSession());
+            }
+            return new DisposableCommandService(cmd.getCommandService(), manager, runtime, schedulerService.retryEnabled());
+        } else if (runtime.getKieSession() instanceof InternalKnowledgeRuntime && ctx != null) {
+            ctx.setKnowledgeRuntime((InternalKnowledgeRuntime) runtime.getKieSession());
+        }
+        
+        return new DisposableCommandService(jobFactoryManager.getCommandService(), manager, runtime, schedulerService.retryEnabled());
     }
 
 
@@ -222,14 +261,15 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         }
     
         public int getSessionId() {
-            JobContext ctx = this.getTimerJobInstance().getJobContext();
-            if (ctx instanceof SelfRemovalJobContext) {
-                ctx = ((SelfRemovalJobContext) ctx).getJobContext();
-            }
-            if (ctx instanceof ProcessJobContext) {
-                return ((ProcessJobContext)ctx).getSessionId();
-            }
-            
+        	if (this.getTimerJobInstance() != null) {
+	            JobContext ctx = this.getTimerJobInstance().getJobContext();
+	            if (ctx instanceof SelfRemovalJobContext) {
+	                ctx = ((SelfRemovalJobContext) ctx).getJobContext();
+	            }
+	            if (ctx instanceof ProcessJobContext) {
+	                return ((ProcessJobContext)ctx).getSessionId();
+	            }
+        	}
             return -1;
         }
 
@@ -240,17 +280,30 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         private CommandService delegate;
         private RuntimeManager manager;
         private RuntimeEngine runtime;
+        private boolean retry = false;
         
         
-        public DisposableCommandService(CommandService delegate, RuntimeManager manager, RuntimeEngine runtime) {
+        public DisposableCommandService(CommandService delegate, RuntimeManager manager, RuntimeEngine runtime, boolean retry) {
             this.delegate = delegate;
             this.manager = manager;
             this.runtime = runtime;
+            this.retry = retry;
         }
 
         @Override
         public <T> T execute(Command<T> command) {
-            return delegate.execute(command);
+        	try {
+        		if (delegate == null) {
+        			return runtime.getKieSession().execute(command);
+        		}
+        		return delegate.execute(command);
+        	} catch (RuntimeException e) {
+        		if (retry) {
+        			return delegate.execute(command);
+        		} else {
+        			throw e;
+        		}
+        	}
         }
 
         @Override
@@ -260,6 +313,11 @@ public class GlobalTimerService implements TimerService, InternalSchedulerServic
         
         public void dispose() {
             manager.disposeRuntimeEngine(runtime);
+        }
+        
+        public Environment getEnvironment() {
+        	
+        	return runtime.getKieSession().getEnvironment();
         }
         
     }

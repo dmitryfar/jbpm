@@ -26,21 +26,23 @@ import org.jbpm.process.audit.event.AuditEventBuilder;
 import org.kie.api.builder.model.KieSessionModel;
 import org.kie.api.event.process.ProcessEventListener;
 import org.kie.api.event.rule.AgendaEventListener;
-import org.kie.api.event.rule.WorkingMemoryEventListener;
+import org.kie.api.event.rule.RuleRuntimeEventListener;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.process.WorkItemHandler;
 
 /**
- * This implementation extends DefaultRegisterableItemsFactory
+ * This implementation extends the DefaultRegisterableItemsFactory
  * and relies on definitions of work item handlers and
  * listeners that come from kmodule.xml from kjar. 
- * It will directly register all listeners and work item handlers on ksession
- * and will return listeners and handlers provided by default implementation.
+ * It will directly register all listeners and work item handlers on the ksession
+ * and will also return listeners and handlers provided by the default implementation.
  *
  */
 public class KModuleRegisterableItemsFactory extends DefaultRegisterableItemsFactory {
 
+	private static final String DEFAULT_KIE_SESSION = "defaultKieSession";
+	
     private KieContainer kieContainer;
     private String ksessionName;
     
@@ -65,12 +67,16 @@ public class KModuleRegisterableItemsFactory extends DefaultRegisterableItemsFac
         KieSessionModel ksessionModel = null;
         if(StringUtils.isEmpty(ksessionName)) {
             ksessionModel = ((KieContainerImpl)kieContainer).getKieProject().getDefaultKieSession();
+            if (ksessionModel == null) {
+            	ksessionName = DEFAULT_KIE_SESSION;
+            	ksessionModel = ((KieContainerImpl)kieContainer).getKieSessionModel(ksessionName);
+            }
         } else {            
             ksessionModel = ((KieContainerImpl)kieContainer).getKieSessionModel(ksessionName);
         }
         
         if (ksessionModel == null) {
-            throw new IllegalStateException("Cannot find ksession with name " + ksessionName);
+            throw new IllegalStateException("Cannot find ksession, either it does not exist or there are multiple default ksession in kmodule.xml");
         }
         Map<String, Object> parameters = new HashMap<String, Object>();
         parameters.put("ksession", runtime.getKieSession());
@@ -98,9 +104,9 @@ public class KModuleRegisterableItemsFactory extends DefaultRegisterableItemsFac
     }
 
     @Override
-    public List<WorkingMemoryEventListener> getWorkingMemoryEventListeners(
+    public List<RuleRuntimeEventListener> getRuleRuntimeEventListeners(
             RuntimeEngine runtime) {
-        return super.getWorkingMemoryEventListeners(runtime);
+        return super.getRuleRuntimeEventListeners(runtime);
     }
 
 }

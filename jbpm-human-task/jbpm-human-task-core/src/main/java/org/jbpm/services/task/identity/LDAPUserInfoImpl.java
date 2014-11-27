@@ -15,15 +15,11 @@
  */
 package org.jbpm.services.task.identity;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.inject.Alternative;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -32,22 +28,20 @@ import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 import javax.naming.ldap.InitialLdapContext;
 
-import org.jbpm.services.task.impl.model.GroupImpl;
-import org.jbpm.services.task.impl.model.UserImpl;
 import org.kie.api.task.model.Group;
 import org.kie.api.task.model.OrganizationalEntity;
 import org.kie.api.task.model.User;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.UserInfo;
+import org.kie.internal.task.api.model.InternalOrganizationalEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Alternative
-@ApplicationScoped
-public class LDAPUserInfoImpl implements UserInfo {
+public class LDAPUserInfoImpl extends AbstractUserGroupInfo implements UserInfo {
     
     private static final Logger logger = LoggerFactory.getLogger(LDAPUserInfoImpl.class);
     
-    protected static final String DEFAULT_PROPERTIES_NAME = "/jbpm.user.info.properties";
+    protected static final String DEFAULT_PROPERTIES_NAME = "classpath:/jbpm.user.info.properties";
     
     public static final String BIND_USER = "ldap.bind.user";
     public static final String BIND_PWD = "ldap.bind.pwd";
@@ -67,31 +61,18 @@ public class LDAPUserInfoImpl implements UserInfo {
     public static final String ROLE_ATTR_ID = "ldap.role.attr.id";
     
     public static final String IS_ENTITY_ID_DN = "ldap.entity.id.dn";
+    public static final String SEARCH_SCOPE = "ldap.search.scope";
     
     protected static final String[] requiredProperties = {USER_CTX, ROLE_CTX, USER_FILTER, ROLE_FILTER};
 
     
     private Properties config;
     
-    
-    public LDAPUserInfoImpl() {
+    //no no-arg constructor to prevent cdi from auto deploy
+    public LDAPUserInfoImpl(boolean activate) {
         String propertiesLocation = System.getProperty("jbpm.user.info.properties");
         
-        if (propertiesLocation == null) {
-            propertiesLocation = DEFAULT_PROPERTIES_NAME;
-        }
-        logger.debug("Callback properties will be loaded from {}", propertiesLocation);
-        InputStream in = this.getClass().getResourceAsStream(propertiesLocation);
-        if (in != null) {
-            config = new Properties();
-            try {
-                config.load(in);
-            } catch (IOException e) {
-                e.printStackTrace();
-                config = null;
-            }
-        }
-        
+        config = readProperties(propertiesLocation, DEFAULT_PROPERTIES_NAME);
         validate();
     }
     
@@ -104,11 +85,11 @@ public class LDAPUserInfoImpl implements UserInfo {
         String context = null;
         String filter = null;
         String attrId = null;
-        if (entity instanceof UserImpl) {
+        if (entity instanceof User) {
             context = this.config.getProperty(USER_CTX);
             filter = this.config.getProperty(USER_FILTER);
             attrId = this.config.getProperty(NAME_ATTR_ID, "displayName");
-        } else if (entity instanceof GroupImpl) {
+        } else if (entity instanceof Group) {
             context = this.config.getProperty(ROLE_CTX);
             filter = this.config.getProperty(ROLE_FILTER);
             attrId = this.config.getProperty(NAME_ATTR_ID, "displayName");
@@ -133,13 +114,19 @@ public class LDAPUserInfoImpl implements UserInfo {
             roleFilter = roleFilter.replaceAll("\\{0\\}", group.getId());
             
             SearchControls constraints = new SearchControls();
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
             
             NamingEnumeration<SearchResult> result = ctx.search(roleContext, roleFilter, constraints);
             while (result.hasMore()) {
                 SearchResult sr = result.next();
                 Attribute member = sr.getAttributes().get(roleAttrId);
                 for (int i = 0; i < member.size(); i++) {
-                    memebers.add(new UserImpl(member.get(i).toString()));
+                	User user = TaskModelProvider.getFactory().newUser();
+                    ((InternalOrganizationalEntity) user).setId(member.get(i).toString());
+                    memebers.add(user);
                 }
                 
             }
@@ -173,6 +160,10 @@ public class LDAPUserInfoImpl implements UserInfo {
             roleFilter = roleFilter.replaceAll("\\{0\\}", group.getId());
             
             SearchControls constraints = new SearchControls();
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
             
             NamingEnumeration<SearchResult> result = ctx.search(roleContext, roleFilter, constraints);
             if (result.hasMore()) {
@@ -205,11 +196,11 @@ public class LDAPUserInfoImpl implements UserInfo {
         String context = null;
         String filter = null;
         String attrId = null;
-        if (entity instanceof UserImpl) {
+        if (entity instanceof User) {
             context = this.config.getProperty(USER_CTX);
             filter = this.config.getProperty(USER_FILTER);
             attrId = this.config.getProperty(EMAIL_ATTR_ID, "mail");
-        } else if (entity instanceof GroupImpl) {
+        } else if (entity instanceof Group) {
             context = this.config.getProperty(ROLE_CTX);
             filter = this.config.getProperty(ROLE_FILTER);
             attrId = this.config.getProperty(EMAIL_ATTR_ID, "mail");
@@ -291,6 +282,20 @@ public class LDAPUserInfoImpl implements UserInfo {
             providerURL = "ldap://localhost:"+ ((protocol != null && protocol.equals("ssl")) ? "636" : "389");
             this.config.setProperty(Context.PROVIDER_URL, providerURL);
         }
+        
+        String binduser = this.config.getProperty(BIND_USER); 
+
+        if (binduser != null) {
+
+            this.config.setProperty(Context.SECURITY_PRINCIPAL, binduser);
+        }
+
+        String bindpwd = this.config.getProperty(BIND_PWD); 
+
+        if (binduser != null) {
+
+            this.config.setProperty(Context.SECURITY_CREDENTIALS, bindpwd);
+        }
 
         if (logger.isDebugEnabled()) {
             logger.debug("Using following InitialLdapContext properties:");
@@ -315,6 +320,10 @@ public class LDAPUserInfoImpl implements UserInfo {
             filter = filter.replaceAll("\\{0\\}",entityId);
             
             SearchControls constraints = new SearchControls();
+            String searchScope  = this.config.getProperty(SEARCH_SCOPE);
+            if (searchScope != null) {
+            	constraints.setSearchScope(parseSearchScope(searchScope));
+            }
             
             NamingEnumeration<SearchResult> ldapResult = ctx.search(context, filter, constraints);
             if (ldapResult.hasMore()) {
@@ -349,9 +358,9 @@ public class LDAPUserInfoImpl implements UserInfo {
             return userDN;
         }
         String entityAttrId = null;
-        if (entity instanceof UserImpl) {
+        if (entity instanceof User) {
             entityAttrId = this.config.getProperty(USER_ATTR_ID, "uid");
-        } else if (entity instanceof GroupImpl) {
+        } else if (entity instanceof Group) {
             entityAttrId = this.config.getProperty(ROLE_ATTR_ID, "cn");
         }
         if (attributes != null) {
@@ -365,5 +374,17 @@ public class LDAPUserInfoImpl implements UserInfo {
         }
         return null;
     }
+    
+	protected int parseSearchScope(String searchScope) {
+		logger.debug("Search scope: {}", searchScope);
+		if ("OBJECT_SCOPE".equals(searchScope))
+			return 0;
+		else if ("ONELEVEL_SCOPE".equals(searchScope))
+			return 1;
+		else if ("SUBTREE_SCOPE".equals(searchScope))
+			return 2;
 
+		// Default set to ONELEVEL_SCOPE
+		return 1;
+	}
 }

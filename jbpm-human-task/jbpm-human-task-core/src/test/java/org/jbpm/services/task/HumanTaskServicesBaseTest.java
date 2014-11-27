@@ -15,73 +15,51 @@
  */
 package org.jbpm.services.task;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
-import javax.inject.Inject;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
 
-import org.jbpm.services.task.impl.model.UserImpl;
+import org.jbpm.persistence.util.PersistenceUtil;
 import org.jbpm.services.task.impl.model.xml.JaxbContent;
-import org.jbpm.services.task.query.TaskSummaryImpl;
 import org.jbpm.services.task.utils.ContentMarshallerHelper;
 import org.jbpm.services.task.utils.MVELUtils;
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Before;
 import org.kie.api.task.model.Content;
 import org.kie.internal.task.api.InternalTaskService;
-import org.kie.internal.task.api.model.InternalTaskSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import bitronix.tm.resource.jdbc.PoolingDataSource;
 
 public abstract class HumanTaskServicesBaseTest {
 
     private static final Logger logger = LoggerFactory.getLogger(HumanTaskServicesBaseTest.class);
-    protected static boolean usersLoaded = false;
-    @Inject
+    
     protected InternalTaskService taskService;
 
-    @Before
-    public void setUp() {
-        
-        if (!usersLoaded) {
-
-            try {
-                taskService.addUser(new UserImpl("Administrator"));
-                usersLoaded = true;
-            } catch (Exception ex) {
-                logger.error("Error during initialization of test", ex);
-            }
-        }
-
-    }
-    
-    @After
     public void tearDown() {
-        int removeAllTasks = taskService.removeAllTasks();
-        logger.debug("Number of tasks removed {}", removeAllTasks);
-    }
-    
-    @AfterClass
-    public static void tearDownClass() {
-        usersLoaded = false;
+        if( taskService != null ) { 
+            int removeAllTasks = taskService.removeAllTasks();
+            logger.debug("Number of tasks removed {}", removeAllTasks);
+        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -101,40 +79,6 @@ public abstract class HumanTaskServicesBaseTest {
 
         return result;
     }
-
-
-//    protected static void testDeadlines(long now, MockEscalatedDeadlineHandler handler) throws Exception { 
-//        int sleep = 8000;
-//        handler.wait(3, sleep);
-//
-//        assertEquals(3, handler.getList().size());
-//
-//        boolean firstDeadlineMet = false;
-//        boolean secondDeadlineMet = false;
-//        boolean thirdDeadlineMet = false;
-//        for( Item item : handler.getList() ) { 
-//            long deadlineTime = item.getDeadline().getDate().getTime();
-//            if( deadlineTime == now + 2000 ) { 
-//                firstDeadlineMet = true;
-//            }
-//            else if( deadlineTime == now + 4000 ) { 
-//                secondDeadlineMet = true;
-//            }
-//            else if( deadlineTime == now + 6000 ) { 
-//                thirdDeadlineMet = true;
-//            }
-//            else { 
-//                fail( deadlineTime + " is not an expected deadline time. Now is [" + now + " (" + (deadlineTime-now) + ")]." );
-//            }
-//        }
-//        
-//        assertTrue( "First deadline was not met." , firstDeadlineMet );
-//        assertTrue( "Second deadline was not met." , secondDeadlineMet );
-//        assertTrue( "Third deadline was not met." , thirdDeadlineMet );   
-//        
-//        // Wait for deadlines to finish
-//        Thread.sleep(1000); 
-//    }
 
     protected final static String mySubject = "My Subject";
     protected final static String myBody = "My Body";
@@ -190,7 +134,7 @@ public abstract class HumanTaskServicesBaseTest {
             // unmarshal
             Unmarshaller unmarshaller = JAXBContext.newInstance(JaxbContent.class).createUnmarshaller();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(stringWriter.toString().getBytes());
-             xmlCopy = (JaxbContent) unmarshaller.unmarshal(inputStream);
+            xmlCopy = (JaxbContent) unmarshaller.unmarshal(inputStream);
 
             for(Field field : JaxbContent.class.getDeclaredFields()) { 
                 field.setAccessible(true);
@@ -208,7 +152,94 @@ public abstract class HumanTaskServicesBaseTest {
         }
         
         Object orig = ContentMarshallerHelper.unmarshall(content.getContent(), null);
+        assertNotNull( "Round tripped JaxbContent is null!", xmlCopy );
         Object roundTrip = ContentMarshallerHelper.unmarshall(xmlCopy.getContent(), null);
         Assert.assertEquals(orig, roundTrip);
     }
+    
+    protected static final String DATASOURCE_PROPERTIES = "/datasource.properties";
+    
+    protected static final String MAX_POOL_SIZE = "maxPoolSize";
+    protected static final String ALLOW_LOCAL_TXS = "allowLocalTransactions";
+    
+    protected static final String DATASOURCE_CLASS_NAME = "className";
+    protected static final String DRIVER_CLASS_NAME = "driverClassName";
+    protected static final String USER = "user";
+    protected static final String PASSWORD = "password";
+    protected static final String JDBC_URL = "url";
+    
+    protected PoolingDataSource setupPoolingDataSource() {
+        Properties dsProps = getDatasourceProperties();
+        PoolingDataSource pds = PersistenceUtil.setupPoolingDataSource(dsProps, "jdbc/jbpm-ds", false);
+        pds.init();
+        
+        return pds;
+    }
+    
+    
+    /**
+     * This reads in the (maven filtered) datasource properties from the test
+     * resource directory.
+     * 
+     * @return Properties containing the datasource properties.
+     */
+    private static Properties getDatasourceProperties() { 
+        boolean propertiesNotFound = false;
+        
+        // Central place to set additional H2 properties
+        System.setProperty("h2.lobInDatabase", "true");
+        
+        InputStream propsInputStream = HumanTaskServicesBaseTest.class.getResourceAsStream(DATASOURCE_PROPERTIES);
+        Properties props = new Properties();
+        if (propsInputStream != null) {
+            try {
+                props.load(propsInputStream);
+            } catch (IOException ioe) {
+                propertiesNotFound = true;
+                logger.warn("Unable to find properties, using default H2 properties: " + ioe.getMessage());
+                ioe.printStackTrace();
+            }
+        } else {
+            propertiesNotFound = true;
+        }
+
+        String password = props.getProperty("password");
+        if ("${maven.jdbc.password}".equals(password) || propertiesNotFound) {
+           logger.warn( "Unable to load datasource properties [" + DATASOURCE_PROPERTIES + "]" );
+        }
+        
+        // If maven filtering somehow doesn't work the way it should.. 
+        setDefaultProperties(props);
+
+        return props;
+    }
+
+    /**
+     * Return the default database/datasource properties - These properties use
+     * an in-memory H2 database
+     * 
+     * This is used when the developer is somehow running the tests but
+     * bypassing the maven filtering that's been turned on in the pom.
+     * 
+     * @return Properties containing the default properties
+     */
+    private static void setDefaultProperties(Properties props) {
+        String[] keyArr = { 
+                "serverName", "portNumber", "databaseName", JDBC_URL,
+                USER, PASSWORD,
+                DRIVER_CLASS_NAME, DATASOURCE_CLASS_NAME,
+                MAX_POOL_SIZE, ALLOW_LOCAL_TXS };
+        String[] defaultPropArr = { 
+                "", "", "", "jdbc:h2:mem:jbpm-db;MVCC=true",
+                "sa", "", 
+                "org.h2.Driver", "bitronix.tm.resource.jdbc.lrc.LrcXADataSource", 
+                "5", "true" };
+        Assert.assertTrue("Unequal number of keys for default properties", keyArr.length == defaultPropArr.length);
+        for (int i = 0; i < keyArr.length; ++i) {
+            if( ! props.containsKey(keyArr[i]) ) {
+                props.put(keyArr[i], defaultPropArr[i]);
+            }
+        }
+    }
+
 }

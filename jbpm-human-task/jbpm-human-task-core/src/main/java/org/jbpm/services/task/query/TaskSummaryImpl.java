@@ -21,101 +21,39 @@ import java.io.ObjectOutput;
 import java.util.Date;
 import java.util.List;
 
-import javax.xml.bind.annotation.XmlAccessType;
-import javax.xml.bind.annotation.XmlAccessorType;
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlRootElement;
-import javax.xml.bind.annotation.XmlSchemaType;
-import javax.xml.bind.annotation.XmlSeeAlso;
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
-
-import org.jbpm.services.task.impl.model.UserImpl;
-import org.jbpm.services.task.impl.model.xml.adapter.StatusXmlAdapter;
-import org.jbpm.services.task.impl.model.xml.adapter.SubTasksStrategyXmlAdapter;
-import org.jbpm.services.task.impl.model.xml.adapter.UserXmlAdapter;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.User;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.model.InternalTaskSummary;
 import org.kie.internal.task.api.model.SubTasksStrategy;
 
-@XmlRootElement(name="task-summary")
-@XmlAccessorType(XmlAccessType.FIELD)
-@XmlSeeAlso(value={Status.class, SubTasksStrategy.class})
 public class TaskSummaryImpl implements InternalTaskSummary {
 
-    @XmlElement
-    @XmlSchemaType(name="long")
     private long id;
-    
-    @XmlElement
-    @XmlSchemaType(name="string")
-    private String name;
-    
-    @XmlElement
-    @XmlSchemaType(name="string")
-    private String subject;
-    
-    @XmlElement
-    @XmlSchemaType(name="string")
-    private String description;
-    
-    @XmlElement
-    @XmlJavaTypeAdapter(value=StatusXmlAdapter.class, type=Status.class)
+    private String name = "";
+    private String subject = "";
+    private String description = "";
     private Status status;
-    
-    @XmlElement
-    @XmlSchemaType(name="int")
+    private String statusId;
     private int priority;
-    
-    @XmlElement
-    @XmlSchemaType(name="boolean")
     private boolean skipable;
-    
-    @XmlElement(name="actual-owner")
-    @XmlJavaTypeAdapter(value=UserXmlAdapter.class, type=User.class)
     private User actualOwner;
-    
-    @XmlElement(name="created-by")
-    @XmlJavaTypeAdapter(value=UserXmlAdapter.class, type=User.class)
+    private String actualOwnerId;
     private User createdBy;
-    
-    @XmlElement(name="created-on")
-    @XmlSchemaType(name="dateTime")
+    private String createdById;
     private Date createdOn;
-    
-    @XmlElement(name="activation-time")
-    @XmlSchemaType(name="dateTime")
     private Date activationTime;
-    
-    @XmlElement(name="expiration-time")
-    @XmlSchemaType(name="dateTime")
     private Date expirationTime;
-    
-    @XmlElement(name="process-instance-id")
-    @XmlSchemaType(name="long")
     private long processInstanceId;
-    
-    @XmlElement(name="process-id")
-    @XmlSchemaType(name="string")
     private String processId;
-    
-    @XmlElement(name="process-session-id")
-    @XmlSchemaType(name="int")
     private int processSessionId;
-
-    @XmlElement(name="sub-task-strategy")
-    @XmlJavaTypeAdapter(value=SubTasksStrategyXmlAdapter.class, type=SubTasksStrategy.class)
+    private String deploymentId;
     private SubTasksStrategy subTaskStrategy;
-    
-    @XmlElement(name="parent-id")
-    @XmlSchemaType(name="long")
     private long parentId;
-    
-    @XmlElement(name="potential-owner")
     private List<String> potentialOwners;
+    private boolean quickTaskSummary;
 
     public TaskSummaryImpl(long id,
-            long processInstanceId,
             String name,
             String subject,
             String description,
@@ -129,6 +67,8 @@ public class TaskSummaryImpl implements InternalTaskSummary {
             Date expirationTime,
             String processId,
             int processSessionId,
+            long processInstanceId,
+            String deploymentId,
             SubTasksStrategy subTaskStrategy,
             long parentId) {
         super();
@@ -141,7 +81,13 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.priority = priority;
         this.skipable = skipable;
         this.actualOwner = actualOwner;
+        if (actualOwner != null) {
+            this.actualOwnerId = actualOwner.getId();
+        }
         this.createdBy = createdBy;
+        if (createdBy != null) {
+            this.createdById = createdBy.getId();
+        }
         this.createdOn = createdOn;
         this.activationTime = activationTime;
         this.expirationTime = expirationTime;
@@ -149,9 +95,46 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.processSessionId = processSessionId;
         this.subTaskStrategy = subTaskStrategy;
         this.parentId = parentId;
+        this.deploymentId = deploymentId;
+        this.quickTaskSummary = false;
     }
-    
-    
+
+    /*
+     * Construct a QuickTaskSummary
+     */
+    public TaskSummaryImpl(long id,
+            String name,
+            String description,
+            Status status,
+            int priority,
+            String actualOwner,
+            String createdBy,
+            Date createdOn,
+            Date activationTime,
+            Date expirationTime,
+            String processId,
+            long processInstanceId,
+            long parentId,
+            String deploymentId) {
+        this.id = id;
+        this.processInstanceId = processInstanceId;
+        this.name = name;
+        this.description = description;
+        this.status = status;
+        if (status != null) {
+            this.statusId = status.name();
+        }
+        this.priority = priority;
+        this.actualOwnerId = actualOwner;
+        this.createdById = createdBy;
+        this.createdOn = createdOn;
+        this.activationTime = activationTime;
+        this.expirationTime = expirationTime;
+        this.processId = processId;
+        this.parentId = parentId;
+        this.deploymentId = deploymentId;
+        this.quickTaskSummary = true;
+    }
 
     public TaskSummaryImpl() {
     }
@@ -271,12 +254,12 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         skipable = in.readBoolean();
 
         if (in.readBoolean()) {
-            actualOwner = new UserImpl();
+            actualOwner = TaskModelProvider.getFactory().newUser();
             actualOwner.readExternal(in);
         }
 
         if (in.readBoolean()) {
-            createdBy = new UserImpl();
+            createdBy = TaskModelProvider.getFactory().newUser();
             createdBy.readExternal(in);
         }
 
@@ -303,7 +286,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         }
     }
 
-    public long getId() {
+    public Long getId() {
         return id;
     }
 
@@ -311,7 +294,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.id = id;
     }
 
-    public long getProcessInstanceId() {
+    public Long getProcessInstanceId() {
         return processInstanceId;
     }
 
@@ -351,7 +334,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.status = status;
     }
 
-    public int getPriority() {
+    public Integer getPriority() {
         return priority;
     }
 
@@ -359,7 +342,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.priority = priority;
     }
 
-    public boolean isSkipable() {
+    public Boolean isSkipable() {
         return skipable;
     }
 
@@ -368,6 +351,9 @@ public class TaskSummaryImpl implements InternalTaskSummary {
     }
 
     public User getActualOwner() {
+        if(quickTaskSummary && actualOwnerId != null && !actualOwnerId.equals("")){
+            actualOwner = TaskModelProvider.getFactory().newUser(actualOwnerId);
+        }
         return actualOwner;
     }
 
@@ -376,6 +362,9 @@ public class TaskSummaryImpl implements InternalTaskSummary {
     }
 
     public User getCreatedBy() {
+        if(quickTaskSummary && createdById != null && !createdById.equals("")){
+            createdBy = TaskModelProvider.getFactory().newUser(createdById);
+        }
         return createdBy;
     }
 
@@ -415,7 +404,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.processId = processId;
     }
 
-    public int getProcessSessionId() {
+    public Integer getProcessSessionId() {
         return processSessionId;
     }
 
@@ -431,7 +420,7 @@ public class TaskSummaryImpl implements InternalTaskSummary {
         this.subTaskStrategy = subTaskStrategy;
     }
 
-    public long getParentId() {
+    public Long getParentId() {
         return parentId;
     }
 
@@ -445,6 +434,10 @@ public class TaskSummaryImpl implements InternalTaskSummary {
 
     public void setPotentialOwners(List<String> potentialOwners) {
         this.potentialOwners = potentialOwners;
+    }
+
+    public Boolean isQuickTaskSummary() {
+        return quickTaskSummary;
     }
 
     @Override
@@ -576,5 +569,25 @@ public class TaskSummaryImpl implements InternalTaskSummary {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public String getStatusId() {
+        return statusId;
+    }
+
+    @Override
+    public String getActualOwnerId() {
+        return actualOwnerId;
+    }
+
+    @Override
+    public String getCreatedById() {
+        return createdById;
+    }
+
+    @Override
+    public String getDeploymentId() {
+        return deploymentId;
     }
 }

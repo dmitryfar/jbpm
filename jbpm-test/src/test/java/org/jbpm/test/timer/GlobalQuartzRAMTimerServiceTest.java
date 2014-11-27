@@ -9,9 +9,9 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
 import org.kie.api.runtime.manager.RuntimeManager;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
 
 @RunWith(Parameterized.class)
 public class GlobalQuartzRAMTimerServiceTest extends GlobalTimerServiceBaseTest {
@@ -50,16 +50,26 @@ public class GlobalQuartzRAMTimerServiceTest extends GlobalTimerServiceBaseTest 
     }
 
     @Override
-    protected RuntimeManager getManager(RuntimeEnvironment environment) {
-        if (managerType ==1) {
-            return RuntimeManagerFactory.Factory.get().newSingletonRuntimeManager(environment);
+    protected RuntimeManager getManager(RuntimeEnvironment environment, boolean waitOnStart) {
+    	RuntimeManager manager = null;
+    	if (managerType ==1) {
+    		manager = RuntimeManagerFactory.Factory.get().newSingletonRuntimeManager(environment);
         } else if (managerType == 2) {
-            return RuntimeManagerFactory.Factory.get().newPerRequestRuntimeManager(environment);
+        	manager = RuntimeManagerFactory.Factory.get().newPerRequestRuntimeManager(environment);
         } else if (managerType == 3) {
-            return RuntimeManagerFactory.Factory.get().newPerProcessInstanceRuntimeManager(environment);
+        	manager = RuntimeManagerFactory.Factory.get().newPerProcessInstanceRuntimeManager(environment);
         } else {
             throw new IllegalArgumentException("Invalid runtime maanger type");
         }
+    	if (waitOnStart) {
+	        // wait for the 2 seconds (default startup delay for quartz)
+	    	try {
+				Thread.sleep(2000);
+			} catch (InterruptedException e) {
+				// do nothing
+			}
+    	}
+    	return manager;
     }
 
 }

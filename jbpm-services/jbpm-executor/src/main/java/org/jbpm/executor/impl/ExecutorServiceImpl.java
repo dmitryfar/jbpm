@@ -18,14 +18,10 @@ package org.jbpm.executor.impl;
 
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
-import org.jboss.seam.transaction.Transactional;
-import org.kie.commons.services.cdi.Startup;
+import org.jbpm.executor.ExecutorServiceFactory;
+import org.jbpm.executor.RequeueAware;
 import org.kie.internal.executor.api.CommandContext;
 import org.kie.internal.executor.api.ErrorInfo;
 import org.kie.internal.executor.api.Executor;
@@ -40,20 +36,20 @@ import org.kie.internal.executor.api.STATUS;
  * via this service to ensure all internals are properly initialized
  *
  */
-@Startup
-@Singleton
-@Transactional
-public class ExecutorServiceImpl implements ExecutorService {
-    @Inject
+public class ExecutorServiceImpl implements ExecutorService, RequeueAware {
+	
+    private TimeUnit timeunit = TimeUnit.valueOf(System.getProperty("org.kie.executor.timeunit", "SECONDS"));
+    private long maxRunningTime = Long.parseLong(System.getProperty("org.kie.executor.running.max", "600"));
+    
     private Executor executor;
     private boolean executorStarted = false;
-    @Inject 
+     
     private ExecutorQueryService queryService;
-    @Inject
+    
     private ExecutorAdminService adminService;
     
 
-    public ExecutorServiceImpl() {
+    public ExecutorServiceImpl(Executor executor) {
     }
 
     public Executor getExecutor() {
@@ -128,16 +124,24 @@ public class ExecutorServiceImpl implements ExecutorService {
         executor.cancelRequest(requestId);
     }
 
-    @PostConstruct
+    
     public void init() {
-        executor.init();
-        this.executorStarted = true;
+    	if (!executorStarted) {
+    		if (maxRunningTime > -1) {
+    			requeue(maxRunningTime);
+    		}
+	        executor.init();
+	        this.executorStarted = true;
+    	}
     }
     
-    @PreDestroy
-    public void destroy() {
-    	this.executorStarted = false;
-        executor.destroy();
+    
+    public void destroy() {  
+    	if (executorStarted) {
+    		ExecutorServiceFactory.resetExecutorService(this);
+	    	this.executorStarted = false;
+	        executor.destroy();	        
+    	}
     }
     
     public boolean isActive() {
@@ -167,6 +171,14 @@ public class ExecutorServiceImpl implements ExecutorService {
     public void setThreadPoolSize(int nroOfThreads) {
         executor.setThreadPoolSize(nroOfThreads);
     }
+    
+	public TimeUnit getTimeunit() {
+		return executor.getTimeunit();
+	}
+
+	public void setTimeunit(TimeUnit timeunit) {
+		executor.setTimeunit(timeunit);
+	}
 
     public List<RequestInfo> getPendingRequests() {
         return queryService.getPendingRequests();
@@ -185,16 +197,33 @@ public class ExecutorServiceImpl implements ExecutorService {
     }
 
     public RequestInfo getRequestById(Long requestId) {
-            return queryService.getRequestById(requestId);
+    	return queryService.getRequestById(requestId);
     }
 
     public List<ErrorInfo> getErrorsByRequestId(Long requestId) {
-            return queryService.getErrorsByRequestId(requestId);
+    	return queryService.getErrorsByRequestId(requestId);
     }
 
     @Override
     public List<RequestInfo> getRequestsByBusinessKey(String businessKey) {
         return queryService.getRequestByBusinessKey(businessKey);
     }
+
+	@Override
+	public void requeue(Long olderThan) {		
+        if (adminService instanceof RequeueAware) {
+        	if (olderThan == null) {
+        		olderThan = maxRunningTime;
+        	}
+        	((RequeueAware) adminService).requeue(timeunit.convert(olderThan, TimeUnit.MILLISECONDS));
+        }
+	}
+
+	@Override
+	public void requeueById(Long requestId) {
+		if (adminService instanceof RequeueAware) {
+        	((RequeueAware) adminService).requeueById(requestId);
+        }
+	}
 
 }

@@ -17,22 +17,22 @@ package org.jbpm.runtime.manager.impl.factory;
 
 import javax.persistence.EntityManagerFactory;
 
-import org.jboss.solder.core.Veto;
 import org.jbpm.runtime.manager.impl.SimpleRuntimeEnvironment;
+import org.jbpm.services.task.HumanTaskConfigurator;
 import org.jbpm.services.task.HumanTaskServiceFactory;
-import org.jbpm.shared.services.impl.JbpmJTATransactionManager;
+import org.kie.api.runtime.manager.RegisterableItemsFactory;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
+import org.kie.api.task.TaskLifeCycleEventListener;
 import org.kie.api.task.TaskService;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
 import org.kie.internal.runtime.manager.TaskServiceFactory;
 
 /**
- * Regular <code>TaskServiceFactory</code> implementation that shall be used for non CDI environments.
- * Creates new <code>TaskService</code> instance for every call to the factory.
- * <code>TaskService</code> instance will be equipped with <code>JbpmJTATransactionManager</code> 
- * for transaction management, this is mandatory as it must participate in already active
+ * A regular <code>TaskServiceFactory</code> implementation that is intended to be used in non CDI environments.
+ * This creates a new <code>TaskService</code> instance for every call to the factory.
+ * The <code>TaskService</code> instance will be equipped with a <code>JbpmJTATransactionManager</code> 
+ * for transaction management. This is mandatory as it must participate in already active
  * transaction if such exists.
  */
-@Veto
 public class LocalTaskServiceFactory implements TaskServiceFactory {
 
     private RuntimeEnvironment runtimeEnvironment;
@@ -42,14 +42,27 @@ public class LocalTaskServiceFactory implements TaskServiceFactory {
     }
     @Override
     public TaskService newTaskService() {
+    	// all to reuse an already given instance of task service instead of producing new one
+    	TaskService providedTaskService = (TaskService) ((SimpleRuntimeEnvironment) runtimeEnvironment)
+    													.getEnvironmentTemplate().get("org.kie.api.task.TaskService");
+    	if (providedTaskService != null) {
+    		return providedTaskService;
+    	}
+    	
         EntityManagerFactory emf = ((SimpleRuntimeEnvironment)runtimeEnvironment).getEmf();
         if (emf != null) {
-            
-            TaskService internalTaskService =   HumanTaskServiceFactory.newTaskServiceConfigurator()
-            .transactionManager(new JbpmJTATransactionManager())
-            .entityManagerFactory(emf)
-            .userGroupCallback(runtimeEnvironment.getUserGroupCallback())
-            .getTaskService();
+        	
+        	HumanTaskConfigurator configurator = HumanTaskServiceFactory.newTaskServiceConfigurator()
+            		.environment(runtimeEnvironment.getEnvironment())
+            		.entityManagerFactory(emf)                     
+                    .userGroupCallback(runtimeEnvironment.getUserGroupCallback());
+        	// register task listeners if any
+        	RegisterableItemsFactory itemsFactory = runtimeEnvironment.getRegisterableItemsFactory();
+        	for (TaskLifeCycleEventListener taskListener : itemsFactory.getTaskListeners()) {
+        		configurator.listener(taskListener);
+        	}
+        	
+            TaskService internalTaskService = configurator.getTaskService();
                                   
             return internalTaskService;
         } else {

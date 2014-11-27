@@ -15,7 +15,11 @@ limitations under the License.*/
 
 package org.jbpm.bpmn2;
 
-import static org.kie.api.runtime.EnvironmentName.*;
+import static org.kie.api.runtime.EnvironmentName.ENTITY_MANAGER_FACTORY;
+import static org.kie.api.runtime.EnvironmentName.OBJECT_MARSHALLING_STRATEGIES;
+import static org.kie.api.runtime.EnvironmentName.TRANSACTION_MANAGER;
+import static org.kie.api.runtime.EnvironmentName.USE_PESSIMISTIC_LOCKING;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -35,31 +39,30 @@ import javax.persistence.Persistence;
 import javax.transaction.Status;
 import javax.transaction.Transaction;
 
-import org.junit.Assert;
-
-import org.drools.compiler.compiler.PackageBuilderConfiguration;
+import org.drools.compiler.builder.impl.KnowledgeBuilderConfigurationImpl;
 import org.drools.core.SessionConfiguration;
 import org.drools.core.audit.WorkingMemoryInMemoryLogger;
 import org.drools.core.audit.event.LogEvent;
 import org.drools.core.audit.event.RuleFlowLogEvent;
 import org.drools.core.audit.event.RuleFlowNodeLogEvent;
 import org.drools.core.impl.EnvironmentFactory;
-import org.drools.core.marshalling.impl.SerializablePlaceholderResolverStrategy;
 import org.drools.core.util.DroolsStreamUtils;
+import org.drools.core.util.MVELSafeHelper;
 import org.h2.tools.DeleteDbFiles;
 import org.h2.tools.Server;
-import org.jbpm.bpmn2.test.RequirePersistence;
 import org.jbpm.bpmn2.test.RequireLocking;
+import org.jbpm.bpmn2.test.RequirePersistence;
 import org.jbpm.bpmn2.xml.BPMNDISemanticModule;
+import org.jbpm.bpmn2.xml.BPMNExtensionsSemanticModule;
 import org.jbpm.bpmn2.xml.BPMNSemanticModule;
 import org.jbpm.bpmn2.xml.XmlBPMNProcessDumper;
 import org.jbpm.compiler.xml.XmlProcessReader;
 import org.jbpm.marshalling.impl.ProcessInstanceResolverStrategy;
+import org.jbpm.persistence.util.PersistenceUtil;
 import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.AuditLoggerFactory;
 import org.jbpm.process.audit.AuditLoggerFactory.Type;
 import org.jbpm.process.audit.JPAAuditLogService;
-import org.jbpm.process.audit.JPAProcessInstanceDbLog;
 import org.jbpm.process.audit.NodeInstanceLog;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.jbpm.process.audit.VariableInstanceLog;
@@ -70,6 +73,7 @@ import org.jbpm.test.util.AbstractBaseTest;
 import org.jbpm.workflow.instance.impl.WorkflowProcessInstanceImpl;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
@@ -101,6 +105,7 @@ import org.kie.internal.builder.KnowledgeBuilderFactory;
 import org.kie.internal.io.ResourceFactory;
 import org.kie.internal.persistence.jpa.JPAKnowledgeService;
 import org.kie.internal.runtime.StatefulKnowledgeSession;
+import org.kie.internal.runtime.conf.ForceEagerActivationOption;
 import org.mvel2.MVEL;
 import org.mvel2.ParserContext;
 import org.slf4j.Logger;
@@ -129,7 +134,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
     private static H2Server server = new H2Server();
     
     private WorkingMemoryInMemoryLogger logger;
-    private AuditLogService logService;
+    protected AuditLogService logService;
 
     protected static EntityManagerFactory emf;
     private static PoolingDataSource ds;
@@ -176,18 +181,17 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
     }
 
     public static PoolingDataSource setupPoolingDataSource() {
-        PoolingDataSource pds = new PoolingDataSource();
-        pds.setUniqueName("jdbc/testDS1");
-        pds.setClassName("bitronix.tm.resource.jdbc.lrc.LrcXADataSource");
-        pds.setMaxPoolSize(5);
-        pds.setAllowLocalTransactions(true);
-        pds.getDriverProperties().put("user", "sa");
-        pds.getDriverProperties().put("password", "");
-        pds.getDriverProperties().put("url",
-                "jdbc:h2:tcp://localhost/target/jbpm-bpmn-db");
-        pds.getDriverProperties().put("driverClassName", "org.h2.Driver");
-        pds.init();
-        return pds;
+        Properties dsProps = PersistenceUtil.getDatasourceProperties();
+        String jdbcUrl = dsProps.getProperty("url");
+        String driverClass = dsProps.getProperty("driverClassName");
+
+        // Setup the datasource
+        PoolingDataSource ds1 = PersistenceUtil.setupPoolingDataSource(dsProps, "jdbc/testDS1", false);
+        if( driverClass.startsWith("org.h2") ) { 
+            ds1.getDriverProperties().setProperty("url", jdbcUrl);
+        }
+        ds1.init();
+        return ds1;
     }
 
     public void setPersistence(boolean sessionPersistence) {
@@ -291,7 +295,6 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
     protected KieBase createKnowledgeBase(String... process) throws Exception {
         List<Resource> resources = new ArrayList<Resource>();
         for (int i = 0; i < process.length; ++i) {
-            String p = process[i];
             resources.addAll(buildAndDumpBPMN2Process(process[i]));
         }
         return createKnowledgeBaseFromResources(resources.toArray(new Resource[resources.size()]));
@@ -309,14 +312,15 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
     // Important to test this since persistence relies on this
     protected List<Resource> buildAndDumpBPMN2Process(String process) throws SAXException, IOException { 
         KnowledgeBuilderConfiguration conf = KnowledgeBuilderFactory.newKnowledgeBuilderConfiguration();
-        ((PackageBuilderConfiguration) conf).initSemanticModules();
-        ((PackageBuilderConfiguration) conf).addSemanticModule(new BPMNSemanticModule());
-        ((PackageBuilderConfiguration) conf).addSemanticModule(new BPMNDISemanticModule());
+        ((KnowledgeBuilderConfigurationImpl) conf).initSemanticModules();
+        ((KnowledgeBuilderConfigurationImpl) conf).addSemanticModule(new BPMNSemanticModule());
+        ((KnowledgeBuilderConfigurationImpl) conf).addSemanticModule(new BPMNDISemanticModule());
+        ((KnowledgeBuilderConfigurationImpl) conf).addSemanticModule(new BPMNExtensionsSemanticModule());
         
         Resource classpathResource = ResourceFactory.newClassPathResource(process);
         // Dump and reread
         XmlProcessReader processReader 
-            = new XmlProcessReader(((PackageBuilderConfiguration) conf).getSemanticModules(), getClass().getClassLoader());
+            = new XmlProcessReader(((KnowledgeBuilderConfigurationImpl) conf).getSemanticModules(), getClass().getClassLoader());
         List<Process> processes = processReader.read(this.getClass().getResourceAsStream("/" + process));
         List<Resource> resources = new ArrayList<Resource>();
         for (Process p : processes) {
@@ -428,6 +432,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
         if (conf == null) {
             conf = KnowledgeBaseFactory.newKnowledgeSessionConfiguration();
         }
+        
         // Do NOT use the Pseudo clock yet..
         // conf.setOption( ClockTypeOption.get( ClockType.PSEUDO_CLOCK.getId() )
         // );
@@ -439,6 +444,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
             if( pessimisticLocking ) { 
                 env.set(USE_PESSIMISTIC_LOCKING, true);
             }
+            conf.setOption(ForceEagerActivationOption.YES);
             result = JPAKnowledgeService.newStatefulKnowledgeSession(kbase,
                     conf, env);
             AuditLoggerFactory.newInstance(Type.JPA, result, null);
@@ -454,7 +460,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
             defaultProps.setProperty("drools.processInstanceManagerFactory",
                     DefaultProcessInstanceManagerFactory.class.getName());
             conf = new SessionConfiguration(defaultProps);
-
+            conf.setOption(ForceEagerActivationOption.YES);
             result = (StatefulKnowledgeSession) kbase.newKieSession(conf, env);
             logger = new WorkingMemoryInMemoryLogger(result);
         }
@@ -481,6 +487,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
                 env.set(USE_PESSIMISTIC_LOCKING, true);
             }
             KieSessionConfiguration config = ksession.getSessionConfiguration();
+            config.setOption(ForceEagerActivationOption.YES);
             StatefulKnowledgeSession result = JPAKnowledgeService.loadStatefulKnowledgeSession(id, kbase, config, env);
             AuditLoggerFactory.newInstance(Type.JPA, result, null);
             ksession.dispose();
@@ -679,7 +686,8 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
     protected List<String> getCompletedNodes(long processInstanceId) { 
         List<String> names = new ArrayList<String>();
         if (sessionPersistence) {
-            List<NodeInstanceLog> logs = JPAProcessInstanceDbLog.findNodeInstances(processInstanceId);
+            AuditLogService auditLogService = new JPAAuditLogService(emf);
+            List<NodeInstanceLog> logs = auditLogService.findNodeInstances(processInstanceId);
             if (logs != null) {
                 for (NodeInstanceLog l : logs) {
                     names.add(l.getNodeId());
@@ -862,7 +870,7 @@ public abstract class JbpmBpmn2TestCase extends AbstractBaseTest {
         context.addPackageImport("java.util");
 
         vars.put("now", new Date());
-        return MVEL.executeExpression(MVEL.compileExpression(str, context),
+        return MVELSafeHelper.getEvaluator().executeExpression(MVEL.compileExpression(str, context),
                 vars);
     }
     

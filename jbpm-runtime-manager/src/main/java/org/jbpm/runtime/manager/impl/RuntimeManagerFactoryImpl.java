@@ -15,10 +15,6 @@
  */
 package org.jbpm.runtime.manager.impl;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
-
 import org.drools.core.time.TimerService;
 import org.jbpm.process.core.timer.GlobalSchedulerService;
 import org.jbpm.process.core.timer.TimerServiceRegistry;
@@ -28,18 +24,18 @@ import org.jbpm.runtime.manager.impl.factory.InMemorySessionFactory;
 import org.jbpm.runtime.manager.impl.factory.JPASessionFactory;
 import org.jbpm.runtime.manager.impl.factory.LocalTaskServiceFactory;
 import org.jbpm.runtime.manager.impl.tx.TransactionAwareSchedulerServiceInterceptor;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
 import org.kie.api.runtime.manager.RuntimeManager;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
 import org.kie.internal.runtime.manager.SessionFactory;
 import org.kie.internal.runtime.manager.TaskServiceFactory;
 
 /**
- * Main entry point class for RuntimeManager module responsible for delivering <code>RuntimeManager</code>
+ * This is the main entry point class for the RuntimeManager module responsible for delivering <code>RuntimeManager</code>
  * instances based on given <code>RuntimeEnvironment</code>.
  * <br/>
  * It can be used in both CDI and non CDI environments although it does not produce RuntimeManager instance for CDI 
- * automatically but would be more used as injection to other beans that might be interested in creating 
+ * automatically but would be more used as an injected bean for other beans that might be interested in creating 
  * <code>RuntimeManager</code> instances on demand.
  * <br/>
  * This factory will try to discover several services before building RuntimeManager:
@@ -50,12 +46,9 @@ import org.kie.internal.runtime.manager.TaskServiceFactory;
  * </ul>
  *
  */
-@ApplicationScoped
 public class RuntimeManagerFactoryImpl implements RuntimeManagerFactory {
     
-    @Inject
-    private Instance<TaskServiceFactory> taskServiceFactoryInjected;
-    
+
     @Override
     public RuntimeManager newSingletonRuntimeManager(RuntimeEnvironment environment) {
         
@@ -117,13 +110,16 @@ public class RuntimeManagerFactoryImpl implements RuntimeManagerFactory {
     }
 
     protected TaskServiceFactory getTaskServiceFactory(RuntimeEnvironment environment) {
-        TaskServiceFactory taskServiceFactory = null;
-        try {
-            taskServiceFactory = taskServiceFactoryInjected.get();
-        } catch (Exception e) {
-            taskServiceFactory = new LocalTaskServiceFactory(environment);
+    	
+    	// if there is an implementation of TaskServiceFactory in the environment then use it
+        TaskServiceFactory taskServiceFactory = (TaskServiceFactory) ((SimpleRuntimeEnvironment)environment).getEnvironmentTemplate()
+        											.get("org.kie.internal.runtime.manager.TaskServiceFactory");
+        if (taskServiceFactory != null) {
+        	return taskServiceFactory;
         }
         
+        taskServiceFactory = new LocalTaskServiceFactory(environment);
+               
         return taskServiceFactory;
     }
     
@@ -139,7 +135,7 @@ public class RuntimeManagerFactoryImpl implements RuntimeManagerFactory {
                         "new org.jbpm.process.core.timer.impl.RegisteredTimerServiceDelegate(\""+timerServiceId+"\")");
                 
                 if (!schedulerService.isTransactional()) {
-                    schedulerService.setInterceptor(new TransactionAwareSchedulerServiceInterceptor(environment, schedulerService));
+                    schedulerService.setInterceptor(new TransactionAwareSchedulerServiceInterceptor(environment, manager, schedulerService));
                 }
             }
         }

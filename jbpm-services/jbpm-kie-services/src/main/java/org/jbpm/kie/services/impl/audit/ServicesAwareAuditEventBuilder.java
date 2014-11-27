@@ -1,8 +1,21 @@
+/*
+ * Copyright 2014 JBoss by Red Hat.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.jbpm.kie.services.impl.audit;
 
-import javax.enterprise.context.ContextNotActiveException;
-
-import org.jbpm.kie.services.api.IdentityProvider;
 import org.jbpm.process.audit.NodeInstanceLog;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.jbpm.process.audit.VariableInstanceLog;
@@ -13,12 +26,12 @@ import org.kie.api.event.process.ProcessNodeLeftEvent;
 import org.kie.api.event.process.ProcessNodeTriggeredEvent;
 import org.kie.api.event.process.ProcessStartedEvent;
 import org.kie.api.event.process.ProcessVariableChangedEvent;
+import org.kie.internal.identity.IdentityProvider;
 
 
 public class ServicesAwareAuditEventBuilder extends DefaultAuditEventBuilderImpl {
 
-    
-    private IdentityProvider identityProvider;
+    private IdentityProvider identityProvider;    
     
     private String deploymentUnitId;
 
@@ -34,7 +47,7 @@ public class ServicesAwareAuditEventBuilder extends DefaultAuditEventBuilderImpl
     public AuditEvent buildEvent(ProcessStartedEvent pse) {
         
         ProcessInstanceLog log = (ProcessInstanceLog) super.buildEvent(pse);
-        log.setIdentity(getIdentityName());
+        log.setIdentity(identityProvider.getName());
         log.setExternalId(deploymentUnitId);
         return log;
     }
@@ -76,15 +89,6 @@ public class ServicesAwareAuditEventBuilder extends DefaultAuditEventBuilderImpl
 
     public void setDeploymentUnitId(String deploymentUnitId) {
         this.deploymentUnitId = deploymentUnitId;
-    }
-    
-    
-    protected String getIdentityName() {
-        try {
-            return identityProvider.getName();
-        } catch (ContextNotActiveException e) {
-            return "unknow";
-        }
     }
     
 }

@@ -10,6 +10,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
 import org.jbpm.process.audit.AbstractAuditLogger;
+import org.jbpm.process.audit.NodeInstanceLog;
 import org.jbpm.process.audit.ProcessInstanceLog;
 
 import com.thoughtworks.xstream.XStream;
@@ -35,13 +36,14 @@ import com.thoughtworks.xstream.XStream;
  * </ul>
  */
 public class AsyncAuditLogReceiver implements MessageListener {
-
+    
     private EntityManagerFactory entityManagerFactory;
     
     public AsyncAuditLogReceiver(EntityManagerFactory entityManagerFactory) {
         this.entityManagerFactory = entityManagerFactory;
     }
     
+    @SuppressWarnings("unchecked")
     @Override
     public void onMessage(Message message) {
         if (message instanceof TextMessage) {
@@ -54,12 +56,28 @@ public class AsyncAuditLogReceiver implements MessageListener {
                 Object event = xstram.fromXML(messageContent);
                 
                 switch (eventType) {
-   
+                case AbstractAuditLogger.AFTER_NODE_ENTER_EVENT_TYPE:
+                    NodeInstanceLog nodeAfterEnterEvent = (NodeInstanceLog) event;
+                    if (nodeAfterEnterEvent.getWorkItemId() != null) {
+                    List<NodeInstanceLog> result = em.createQuery(
+                            "from NodeInstanceLog as log where log.nodeInstanceId = :nodeId and log.type = 0")
+                            .setParameter("nodeId", nodeAfterEnterEvent.getNodeInstanceId()).getResultList();
+                            
+                            if (result != null && result.size() != 0) {
+                            	NodeInstanceLog log = result.get(result.size() - 1);
+                               log.setWorkItemId(nodeAfterEnterEvent.getWorkItemId());
+                               
+                               
+                               em.merge(log);   
+                           }
+                    }
+                    break;
+                
                 case AbstractAuditLogger.AFTER_COMPLETE_EVENT_TYPE:
                     ProcessInstanceLog processCompletedEvent = (ProcessInstanceLog) event;
                     List<ProcessInstanceLog> result = em.createQuery(
-                            "from ProcessInstanceLog as log where log.processInstanceId = ? and log.end is null")
-                                .setParameter(1, processCompletedEvent.getProcessInstanceId()).getResultList();
+                            "from ProcessInstanceLog as log where log.processInstanceId = :piId and log.end is null")
+                            .setParameter("piId", processCompletedEvent.getProcessInstanceId()).getResultList();
                             
                             if (result != null && result.size() != 0) {
                                ProcessInstanceLog log = result.get(result.size() - 1);

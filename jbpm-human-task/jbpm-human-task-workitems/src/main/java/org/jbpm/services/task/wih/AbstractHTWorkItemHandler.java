@@ -16,14 +16,12 @@
 package org.jbpm.services.task.wih;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
 import org.drools.core.process.instance.impl.WorkItemImpl;
-import org.jbpm.services.task.impl.model.I18NTextImpl;
-import org.jbpm.services.task.impl.model.TaskDataImpl;
-import org.jbpm.services.task.impl.model.TaskImpl;
-import org.jbpm.services.task.impl.model.UserImpl;
+import org.jbpm.process.core.timer.DateTimeUtils;
 import org.jbpm.services.task.utils.ContentMarshallerHelper;
 import org.jbpm.services.task.utils.OnErrorAction;
 import org.jbpm.services.task.wih.util.HumanTaskHandlerHelper;
@@ -38,7 +36,11 @@ import org.kie.api.task.model.OrganizationalEntity;
 import org.kie.api.task.model.PeopleAssignments;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.Task;
+import org.kie.api.task.model.User;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.model.ContentData;
+import org.kie.internal.task.api.model.InternalI18NText;
+import org.kie.internal.task.api.model.InternalOrganizationalEntity;
 import org.kie.internal.task.api.model.InternalTask;
 import org.kie.internal.task.api.model.InternalTaskData;
 import org.slf4j.Logger;
@@ -67,14 +69,23 @@ public abstract class AbstractHTWorkItemHandler implements WorkItemHandler {
     }
 
     protected Task createTaskBasedOnWorkItemParams(KieSession session, WorkItem workItem) {
-        InternalTask task = new TaskImpl();
+        InternalTask task = (InternalTask) TaskModelProvider.getFactory().newTask();
         String taskName = (String) workItem.getParameter("NodeName");
+        
+        String locale = (String) workItem.getParameter("Locale");
+        if (locale == null) {
+            locale = "en-UK";
+        }
         
         if (taskName != null) {
             List<I18NText> names = new ArrayList<I18NText>();
-            names.add(new I18NTextImpl("en-UK", taskName));
+            I18NText text = TaskModelProvider.getFactory().newI18NText();
+            ((InternalI18NText) text).setLanguage(locale);
+            ((InternalI18NText) text).setText(taskName);
+            names.add(text);
             task.setNames(names);
         }
+        task.setName(taskName);
         // this should be replaced by FormName filled by designer
         // TaskName shouldn't be trimmed if we are planning to use that for the task lists
         String formName = (String) workItem.getParameter("TaskName"); 
@@ -87,11 +98,23 @@ public abstract class AbstractHTWorkItemHandler implements WorkItemHandler {
             comment = "";
         }
         List<I18NText> descriptions = new ArrayList<I18NText>();
-        descriptions.add(new I18NTextImpl("en-UK", comment));
+        I18NText descText = TaskModelProvider.getFactory().newI18NText();
+        ((InternalI18NText) descText).setLanguage(locale);
+        ((InternalI18NText) descText).setText(comment);
+        descriptions.add(descText);
         task.setDescriptions(descriptions);
+        
+        task.setDescription(comment);
+        
         List<I18NText> subjects = new ArrayList<I18NText>();
-        subjects.add(new I18NTextImpl("en-UK", comment));
+        I18NText subjectText = TaskModelProvider.getFactory().newI18NText();
+        ((InternalI18NText) subjectText).setLanguage(locale);
+        ((InternalI18NText) subjectText).setText(comment);
+        subjects.add(subjectText);
         task.setSubjects(subjects);
+        
+        task.setSubject(comment);
+        
         String priorityString = (String) workItem.getParameter("Priority");
         int priority = 0;
         if (priorityString != null) {
@@ -102,7 +125,11 @@ public abstract class AbstractHTWorkItemHandler implements WorkItemHandler {
             }
         }
         task.setPriority(priority);
-        InternalTaskData taskData = new TaskDataImpl();        
+        
+        
+        
+        
+        InternalTaskData taskData = (InternalTaskData) TaskModelProvider.getFactory().newTaskData();        
         taskData.setWorkItemId(workItem.getId());
         taskData.setProcessInstanceId(workItem.getProcessInstanceId());
         if (session != null && session.getProcessInstance(workItem.getProcessInstanceId()) != null) {
@@ -122,8 +149,24 @@ public abstract class AbstractHTWorkItemHandler implements WorkItemHandler {
         
         String createdBy = (String) workItem.getParameter("CreatedBy");
         if (createdBy != null && createdBy.trim().length() > 0) {
-            taskData.setCreatedBy(new UserImpl(createdBy));            
+        	User user = TaskModelProvider.getFactory().newUser();
+        	((InternalOrganizationalEntity) user).setId(createdBy);
+            taskData.setCreatedBy(user);            
         }
+        String dueDateString = (String) workItem.getParameter("DueDate");
+        Date date = null;
+        if(dueDateString != null && !dueDateString.isEmpty()){
+            if(DateTimeUtils.isPeriod(dueDateString)){
+                Long longDateValue = DateTimeUtils.parseDateAsDuration(dueDateString.substring(1));
+                date = new Date(System.currentTimeMillis() + longDateValue);
+            }else{
+                date = new Date(DateTimeUtils.parseDateTime(dueDateString));
+            }
+        }
+        if(date != null){
+            taskData.setExpirationTime(date);
+        }
+        
         PeopleAssignmentHelper peopleAssignmentHelper = new PeopleAssignmentHelper();
         peopleAssignmentHelper.handlePeopleAssignments(workItem, task, taskData);
         
@@ -145,7 +188,7 @@ public abstract class AbstractHTWorkItemHandler implements WorkItemHandler {
         if (contentObject != null) {
             Environment env = null;
             if(session != null){
-                session.getEnvironment();
+                env = session.getEnvironment();
             }
             content = ContentMarshallerHelper.marshal(contentObject, env);
         }

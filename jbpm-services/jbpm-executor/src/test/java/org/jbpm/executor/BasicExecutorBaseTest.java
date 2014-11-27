@@ -19,6 +19,9 @@ package org.jbpm.executor;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.kie.internal.executor.api.CommandContext;
 import org.kie.internal.executor.api.ErrorInfo;
+import org.kie.internal.executor.api.ExecutionResults;
 import org.kie.internal.executor.api.ExecutorService;
 import org.kie.internal.executor.api.RequestInfo;
 import org.slf4j.Logger;
@@ -58,6 +62,9 @@ public abstract class BasicExecutorBaseTest {
     public void tearDown() {
         executorService.clearAllRequests();
         executorService.clearAllErrors();
+        
+        System.clearProperty("org.kie.executor.msg.length");
+    	System.clearProperty("org.kie.executor.stacktrace.length");
     }
 
     @Test
@@ -100,8 +107,96 @@ public abstract class BasicExecutorBaseTest {
 
         assertEquals(2, ((AtomicLong) cachedEntities.get((String) commandContext.getData("businessKey"))).longValue());
 
+    }
+    
+    @Test
+    public void addAnotherCallbackTest() throws InterruptedException {
 
+        CommandContext commandContext = new CommandContext();
+        commandContext.setData("businessKey", UUID.randomUUID().toString());
+        cachedEntities.put((String) commandContext.getData("businessKey"), new AtomicLong(1));
 
+        commandContext.setData("callbacks", "org.jbpm.executor.SimpleIncrementCallback");
+        executorService.scheduleRequest("org.jbpm.executor.test.AddAnotherCallbackCommand", commandContext);
+
+        Thread.sleep(10000);
+
+        List<RequestInfo> inErrorRequests = executorService.getInErrorRequests();
+        assertEquals(0, inErrorRequests.size());
+        List<RequestInfo> queuedRequests = executorService.getQueuedRequests();
+        assertEquals(0, queuedRequests.size());
+        List<RequestInfo> executedRequests = executorService.getCompletedRequests();
+        assertEquals(1, executedRequests.size());
+
+        assertEquals(2, ((AtomicLong) cachedEntities.get((String) commandContext.getData("businessKey"))).longValue());
+
+        ExecutionResults results = null;
+        byte[] responseData = executedRequests.get(0).getResponseData();
+        ObjectInputStream in = null;
+        try {
+            in = new ObjectInputStream(new ByteArrayInputStream(responseData));
+            results = (ExecutionResults) in.readObject();
+        } catch (Exception e) {                        
+            logger.warn("Exception while serializing context data", e);
+            return;
+        } finally {
+            if (in != null) {
+                try {
+					in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+            }
+        }
+        
+        String result = (String)results.getData("custom");
+        assertNotNull(result);
+        assertEquals("custom callback invoked", result);
+    }
+    
+    @Test
+    public void multipleCallbackTest() throws InterruptedException {
+
+        CommandContext commandContext = new CommandContext();
+        commandContext.setData("businessKey", UUID.randomUUID().toString());
+        cachedEntities.put((String) commandContext.getData("businessKey"), new AtomicLong(1));
+
+        commandContext.setData("callbacks", "org.jbpm.executor.SimpleIncrementCallback, org.jbpm.executor.test.CustomCallback");
+        executorService.scheduleRequest("org.jbpm.executor.commands.PrintOutCommand", commandContext);
+
+        Thread.sleep(10000);
+
+        List<RequestInfo> inErrorRequests = executorService.getInErrorRequests();
+        assertEquals(0, inErrorRequests.size());
+        List<RequestInfo> queuedRequests = executorService.getQueuedRequests();
+        assertEquals(0, queuedRequests.size());
+        List<RequestInfo> executedRequests = executorService.getCompletedRequests();
+        assertEquals(1, executedRequests.size());
+
+        assertEquals(2, ((AtomicLong) cachedEntities.get((String) commandContext.getData("businessKey"))).longValue());
+
+        ExecutionResults results = null;
+        byte[] responseData = executedRequests.get(0).getResponseData();
+        ObjectInputStream in = null;
+        try {
+            in = new ObjectInputStream(new ByteArrayInputStream(responseData));
+            results = (ExecutionResults) in.readObject();
+        } catch (Exception e) {                        
+            logger.warn("Exception while serializing context data", e);
+            return;
+        } finally {
+            if (in != null) {
+                try {
+					in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+            }
+        }
+        
+        String result = (String)results.getData("custom");
+        assertNotNull(result);
+        assertEquals("custom callback invoked", result);
     }
 
     @Test
@@ -172,6 +267,37 @@ public abstract class BasicExecutorBaseTest {
         assertEquals(1, cancelledRequests.size());
 
     }
+    
+    @Test
+    public void executorExceptionTrimmingTest() throws InterruptedException {
+    	System.setProperty("org.kie.executor.msg.length", "10");
+    	System.setProperty("org.kie.executor.stacktrace.length", "20");
+        CommandContext commandContext = new CommandContext();
+        commandContext.setData("businessKey", UUID.randomUUID().toString());
+        cachedEntities.put((String) commandContext.getData("businessKey"), new AtomicLong(1));
+
+        commandContext.setData("callbacks", "org.jbpm.executor.SimpleIncrementCallback");
+        commandContext.setData("retries", 0);
+        executorService.scheduleRequest("org.jbpm.executor.ThrowExceptionCommand", commandContext);
+        logger.info("{} Sleeping for 10 secs", System.currentTimeMillis());
+        Thread.sleep(10000);
+
+        List<RequestInfo> inErrorRequests = executorService.getInErrorRequests();
+        assertEquals(1, inErrorRequests.size());
+        logger.info("Error: {}", inErrorRequests.get(0));
+
+        List<ErrorInfo> errors = executorService.getAllErrors();
+        logger.info("Errors: {}", errors);
+        assertEquals(1, errors.size());
+        
+        ErrorInfo error = errors.get(0);
+        
+        assertEquals(10, error.getMessage().length());
+        assertEquals(20, error.getStacktrace().length());
+
+
+    }
+
     
     public void FIXMEfutureRequestTest() throws InterruptedException {
         CommandContext ctxCMD = new CommandContext();

@@ -374,6 +374,7 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
     private static void linkBoundaryEscalationEvent(NodeContainer nodeContainer, Node node, String attachedTo, Node attachedNode) {
         boolean cancelActivity = (Boolean) node.getMetaData().get("CancelActivity");
         String escalationCode = (String) node.getMetaData().get("EscalationEvent");
+        String escalationStructureRef = (String) node.getMetaData().get("EscalationStructureRef");
         
         ContextContainer compositeNode = (ContextContainer) attachedNode;
         ExceptionScope exceptionScope = (ExceptionScope) 
@@ -384,12 +385,17 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
             compositeNode.setDefaultContext(exceptionScope);
         }
         
+        String variable = ((EventNode)node).getVariableName();
         ActionExceptionHandler exceptionHandler = new ActionExceptionHandler();
         DroolsConsequenceAction action = new DroolsConsequenceAction("java", 
-                    PROCESS_INSTANCE_SIGNAL_EVENT + "Escalation-" + attachedTo + "-" + escalationCode + "\", null);");
+                    PROCESS_INSTANCE_SIGNAL_EVENT + "Escalation-" + attachedTo + "-" + escalationCode + "\", kcontext.getVariable(\"" + variable +"\"));");
         
         exceptionHandler.setAction(action);
+        exceptionHandler.setFaultVariable(variable);
         exceptionScope.setExceptionHandler(escalationCode, exceptionHandler);
+        if (escalationStructureRef != null) {
+        	exceptionScope.setExceptionHandler(escalationStructureRef, exceptionHandler);
+        }
         
         if (cancelActivity) {
             List<DroolsAction> actions = ((EventNode)node).getActions(EndNode.EVENT_NODE_EXIT);
@@ -413,13 +419,20 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
             compositeNode.setDefaultContext(exceptionScope);
         }
         String errorCode = (String) node.getMetaData().get("ErrorEvent");
+        String errorStructureRef = (String) node.getMetaData().get("ErrorStructureRef");
         ActionExceptionHandler exceptionHandler = new ActionExceptionHandler();
+        
+        String variable = ((EventNode)node).getVariableName();
 
         DroolsConsequenceAction action = new DroolsConsequenceAction("java",                   
-                    PROCESS_INSTANCE_SIGNAL_EVENT + "Error-" + attachedTo + "-" + errorCode + "\", null);");
+                    PROCESS_INSTANCE_SIGNAL_EVENT + "Error-" + attachedTo + "-" + errorCode + "\", kcontext.getVariable(\"" + variable +"\"));");
         
         exceptionHandler.setAction(action);
+        exceptionHandler.setFaultVariable(variable);
         exceptionScope.setExceptionHandler(errorCode, exceptionHandler);
+        if (errorStructureRef != null) {
+        	exceptionScope.setExceptionHandler(errorStructureRef, exceptionHandler);
+        }
 
         List<DroolsAction> actions = ((EventNode)node).getActions(EndNode.EVENT_NODE_EXIT);
         if (actions == null) {
@@ -526,14 +539,26 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
         if( associations != null ) { 
             for( Association association : associations ) { 
                String sourceRef = association.getSourceRef();
-               Object source = findNodeOrDataStoreByUniqueId(definitions, nodeContainer, sourceRef,
+               Object source = null;
+               try {
+            	   source = findNodeOrDataStoreByUniqueId(definitions, nodeContainer, sourceRef,
                        "Could not find source [" + sourceRef + "] for association " + association.getId() + "]" );
+               } catch (IllegalArgumentException e) {
+            	   // source not found
+               }
                String targetRef = association.getTargetRef();
-               Object target = findNodeOrDataStoreByUniqueId(definitions, nodeContainer, targetRef, 
+               Object target = null;
+               try {
+            	   target = findNodeOrDataStoreByUniqueId(definitions, nodeContainer, targetRef, 
                        "Could not find target [" + targetRef + "] for association [" + association.getId() + "]" );
-               if( target instanceof DataStore || source instanceof DataStore ) { 
-                   // handle data store
-               } else if( source instanceof EventNode ) { 
+               } catch (IllegalArgumentException e) {
+            	   // target not found
+               }
+               if (source == null || target == null) {
+            	   // TODO: ignoring this association for now
+               } else if (target instanceof DataStore || source instanceof DataStore) { 
+                   // TODO: ignoring data store associations for now
+               } else if (source instanceof EventNode) { 
                    EventNode sourceNode = (EventNode) source;
                    Node targetNode = (Node) target;
                    checkBoundaryEventCompensationHandler(association, sourceNode, targetNode);
@@ -806,7 +831,12 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
                 handleIntermediateOrEndThrowCompensationEvent((EndNode) node);
             } else if( node instanceof ActionNode ) {
                 handleIntermediateOrEndThrowCompensationEvent((ActionNode) node);
-            } 
+            } else if( node instanceof EventNode ) {
+            	final EventNode eventNode = (EventNode) node;
+                if (!(eventNode instanceof BoundaryEventNode) && eventNode.getDefaultIncomingConnections().size() == 0) {
+                	throw new IllegalArgumentException("Event node '" + node.getName() + "' [" + node.getId() + "] has no incoming connection");
+                }
+            }  
         }
     }
 
@@ -928,11 +958,11 @@ public class ProcessHandler extends BaseAbstractHandler implements Handler {
 
             String compensationEvent; 
             if( activityRef.length() == 0 ) { 
-                // general compensation
-                compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX + parentId;
+                // general/implicit compensation
+                compensationEvent = CompensationScope.IMPLICIT_COMPENSATION_PREFIX + parentId;
             } else { 
                 // specific compensation
-                compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX + activityRef;
+                compensationEvent = activityRef;
             }
 
             DroolsConsequenceAction compensationAction = new DroolsConsequenceAction("java", 

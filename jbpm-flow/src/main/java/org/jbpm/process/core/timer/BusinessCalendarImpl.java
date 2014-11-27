@@ -13,8 +13,13 @@ import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.kie.api.time.SessionClock;
 import org.drools.core.time.TimeUtils;
+import org.joda.time.DateTime;
+import org.joda.time.Duration;
+import org.joda.time.Period;
+import org.joda.time.format.ISODateTimeFormat;
+import org.joda.time.format.ISOPeriodFormat;
+import org.kie.api.time.SessionClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,11 +68,12 @@ public class BusinessCalendarImpl implements BusinessCalendar {
     private List<Integer> weekendDays= new ArrayList<Integer>();
     private SessionClock clock;
     
-    private static final Pattern SIMPLE  = Pattern.compile( "([+-])?\\s*((\\d+)[Ww])?\\s*((\\d+)[Dd])?\\s*((\\d+)[Hh])?\\s*((\\d+)[Mm])?" );
+    private static final Pattern SIMPLE  = Pattern.compile( "([+-])?\\s*((\\d+)[Ww])?\\s*((\\d+)[Dd])?\\s*((\\d+)[Hh])?\\s*((\\d+)[Mm])?\\s*((\\d+)[Ss])?" );
     private static final int     SIM_WEEK = 3;
     private static final int     SIM_DAY = 5;
     private static final int     SIM_HOU = 7;
     private static final int     SIM_MIN = 9;
+    private static final int     SIM_SEC = 11;
 
     
     public static final String DAYS_PER_WEEK = "business.hours.per.week";
@@ -133,7 +139,49 @@ public class BusinessCalendarImpl implements BusinessCalendar {
         this.timezone = businessCalendarConfiguration.getProperty(TIMEZONE);
     }
     
+    protected String adoptISOFormat(String timeExpression) {
+    	
+    	try {
+    		Period p = null;
+    		if (DateTimeUtils.isPeriod(timeExpression)) {
+    			p = ISOPeriodFormat.standard().parsePeriod(timeExpression);
+    		} else {
+    			DateTime dt = ISODateTimeFormat.dateTimeParser().parseDateTime(timeExpression);
+                Duration duration = new Duration(System.currentTimeMillis(), dt.getMillis());
+                
+                p = duration.toPeriod();
+    		}
+	        int days = p.getDays();
+	        int hours = p.getHours();
+	        int minutes = p.getMinutes();
+	        int seconds = p.getSeconds();
+	        int milis = p.getMillis();
+	        
+	        StringBuffer time = new StringBuffer();
+	        if (days > 0) {
+	        	time.append(days+"d");
+	        }
+	        if (hours > 0) {
+	        	time.append(hours+"h");
+	        }
+	        if (minutes > 0) {
+	        	time.append(minutes+"m");
+	        }
+	        if (seconds > 0) {
+	        	time.append(seconds+"s");
+	        }
+	        if (milis > 0) {
+	        	time.append(milis+"ms");
+	        }
+	        
+	        return time.toString();
+    	} catch (Exception e) {
+    		return timeExpression;
+    	}
+    }
+    
     public long calculateBusinessTimeAsDuration(String timeExpression) {
+    	timeExpression = adoptISOFormat(timeExpression);
         if (businessCalendarConfiguration == null) {
             return TimeUtils.parseTimeString(timeExpression);
         }
@@ -144,7 +192,8 @@ public class BusinessCalendarImpl implements BusinessCalendar {
     }
     
     public Date calculateBusinessTimeAsDate(String timeExpression) {
-        if (businessCalendarConfiguration == null) {
+    	timeExpression = adoptISOFormat(timeExpression);
+    	if (businessCalendarConfiguration == null) {
             return new Date(TimeUtils.parseTimeString(getCurrentTime() + timeExpression));
         }
         
@@ -154,6 +203,7 @@ public class BusinessCalendarImpl implements BusinessCalendar {
         int days = 0;
         int hours = 0;
         int min = 0;
+        int sec = 0;
         
         if( trimmed.length() > 0 ) {
             Matcher mat = SIMPLE.matcher( trimmed );
@@ -162,6 +212,7 @@ public class BusinessCalendarImpl implements BusinessCalendar {
                 days = (mat.group( SIM_DAY ) != null) ? Integer.parseInt( mat.group( SIM_DAY ) ) : 0;
                 hours = (mat.group( SIM_HOU ) != null) ? Integer.parseInt( mat.group( SIM_HOU ) ) : 0;
                 min = (mat.group( SIM_MIN ) != null) ? Integer.parseInt( mat.group( SIM_MIN ) ) : 0;
+                sec = (mat.group( SIM_SEC ) != null) ? Integer.parseInt( mat.group( SIM_SEC ) ) : 0;
             }
         }
         int time = 0;
@@ -222,6 +273,14 @@ public class BusinessCalendarImpl implements BusinessCalendar {
             min = min-(numberOfHours * 60);
         }
         c.add(Calendar.MINUTE, min);
+        
+        // calculate seconds
+        int numberOfMinutes = sec/60;
+        if (numberOfMinutes > 0) {
+            c.add(Calendar.MINUTE, numberOfMinutes);
+            sec = sec-(numberOfMinutes * 60);
+        }
+        c.add(Calendar.SECOND, sec);
         
         currentCalHour = c.get(Calendar.HOUR_OF_DAY);
         if (currentCalHour >= endHour) {

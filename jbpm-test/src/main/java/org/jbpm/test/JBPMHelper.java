@@ -10,18 +10,17 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
 
 import org.h2.tools.Server;
-import org.jbpm.runtime.manager.impl.RuntimeEnvironmentBuilder;
 import org.jbpm.services.task.HumanTaskConfigurator;
 import org.jbpm.services.task.identity.JBossUserGroupCallbackImpl;
-import org.jbpm.shared.services.impl.JbpmJTATransactionManager;
 import org.kie.api.runtime.EnvironmentName;
+import org.kie.api.runtime.manager.RuntimeEnvironmentBuilder;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
 import org.kie.api.task.TaskService;
+import org.kie.api.task.UserGroupCallback;
 import org.kie.internal.KnowledgeBase;
 import org.kie.internal.runtime.StatefulKnowledgeSession;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
 import org.kie.internal.runtime.manager.context.EmptyContext;
-import org.kie.internal.task.api.UserGroupCallback;
 
 import bitronix.tm.TransactionManagerServices;
 import bitronix.tm.resource.jdbc.PoolingDataSource;
@@ -30,7 +29,6 @@ import bitronix.tm.resource.jdbc.PoolingDataSource;
  * Since version 6.0 this class is deprecated. Instead <code>RuntimeManager</code> should be used directly.
  * See documentation on how to use <code>RuntimeManager</code>
  */
-@Deprecated
 public final class JBPMHelper {
 
     public static String[] processStateName = {"PENDING", "ACTIVE", "COMPLETED", "ABORTED", "SUSPENDED"};
@@ -48,6 +46,7 @@ public final class JBPMHelper {
     private JBPMHelper() {
     }
 
+    @Deprecated
     public static void startUp() {
         cleanupSingletonSessionId();
         Properties properties = getProperties();
@@ -92,6 +91,7 @@ public final class JBPMHelper {
         return pds;
     }
 
+    @Deprecated
     public static TaskService startTaskService() {
         Properties properties = getProperties();
         String dialect = properties.getProperty("persistence.persistenceunit.dialect", "org.hibernate.dialect.H2Dialect");
@@ -103,20 +103,22 @@ public final class JBPMHelper {
         TaskService taskService = new HumanTaskConfigurator()
                                         .entityManagerFactory(emf)
                                         .userGroupCallback(getUserGroupCallback())
-                                        .transactionManager(new JbpmJTATransactionManager())
                                         .getTaskService();
         return taskService;
     }
 
+    @Deprecated
     public static void registerTaskService(StatefulKnowledgeSession ksession) {
         // no-op HT work item handler is already registered when using RuntimeManager
 
     }
 
+    @Deprecated
     public static StatefulKnowledgeSession newStatefulKnowledgeSession(KnowledgeBase kbase) {
         return loadStatefulKnowledgeSession(kbase, -1);
     }
 
+    @Deprecated
     public static StatefulKnowledgeSession loadStatefulKnowledgeSession(KnowledgeBase kbase, int sessionId) {
         Properties properties = getProperties();
         String persistenceEnabled = properties.getProperty("persistence.enabled", "false");
@@ -128,19 +130,22 @@ public final class JBPMHelper {
             EntityManagerFactory emf = Persistence.createEntityManagerFactory(properties.getProperty("persistence.persistenceunit.name", "org.jbpm.persistence.jpa"), map);
             
             
-            builder = RuntimeEnvironmentBuilder.getDefault()
+            builder = RuntimeEnvironmentBuilder.Factory.get()
+        			.newDefaultBuilder()
                 .entityManagerFactory(emf)                
                 .addEnvironmentEntry(EnvironmentName.TRANSACTION_MANAGER, TransactionManagerServices.getTransactionManager());
 
 
         } else {            
-            builder = RuntimeEnvironmentBuilder.getDefaultInMemory();
+            builder = RuntimeEnvironmentBuilder.Factory.get()
+        			.newDefaultInMemoryBuilder();
         }
         builder.knowledgeBase(kbase);
         RuntimeManager manager = RuntimeManagerFactory.Factory.get().newSingletonRuntimeManager(builder.get());
         return (StatefulKnowledgeSession) manager.getRuntimeEngine(EmptyContext.get()).getKieSession();
     }
     
+    @Deprecated
     @SuppressWarnings("unchecked")
     public static UserGroupCallback getUserGroupCallback() {
         Properties properties = getProperties();
@@ -158,6 +163,7 @@ public final class JBPMHelper {
         }
     }
 
+    @Deprecated
     public static Properties getProperties() {
         Properties properties = new Properties();
         try {
@@ -168,6 +174,7 @@ public final class JBPMHelper {
         return properties;
     }
     
+    @Deprecated
     protected static void cleanupSingletonSessionId() {
         File tempDir = new File(System.getProperty("java.io.tmpdir"));
         if (tempDir.exists()) {

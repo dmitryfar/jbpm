@@ -30,31 +30,34 @@ import org.drools.core.marshalling.impl.ProtobufMessages.Header;
 import org.drools.core.marshalling.impl.SerializablePlaceholderResolverStrategy;
 import org.jbpm.marshalling.impl.JBPMMessages;
 import org.jbpm.marshalling.impl.JBPMMessages.Variable;
+import org.jbpm.marshalling.impl.JBPMMessages.VariableContainer;
 import org.jbpm.marshalling.impl.ProtobufProcessMarshaller;
-import org.jbpm.services.task.impl.model.ContentDataImpl;
-import org.jbpm.services.task.impl.model.FaultDataImpl;
 import org.kie.api.marshalling.ObjectMarshallingStrategy;
 import org.kie.api.marshalling.ObjectMarshallingStrategyStore;
 import org.kie.api.runtime.Environment;
 import org.kie.api.runtime.EnvironmentName;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.model.AccessType;
+import org.kie.internal.task.api.model.ContentData;
+import org.kie.internal.task.api.model.FaultData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.protobuf.ExtensionRegistry;
+import com.google.protobuf.Message;
 
 public class ContentMarshallerHelper {
 
     private static final Logger logger = LoggerFactory.getLogger(ContentMarshallerHelper.class);
+    private static final String SINGLE_VAR_KEY = "_results_";
 
-    public static ContentDataImpl marshal(Object o, Environment env) {
+    public static ContentData marshal(Object o, Environment env) {
         if (o == null) {
             return null;
         }
-        MarshallerWriteContext context = null;
-        ContentDataImpl content = null;
+        ContentData content = null;
         byte[] toByteArray = marshallContent(o, env);
-        content = new ContentDataImpl();
+        content = TaskModelProvider.getFactory().newContentData();
         content.setContent(toByteArray);
         content.setType(o.getClass().getCanonicalName());
         content.setAccessType(AccessType.Inline); 
@@ -62,11 +65,11 @@ public class ContentMarshallerHelper {
         return content;
     }
     
-     public static FaultDataImpl marshalFault(Map<String, Object> fault, Environment env) {
+     public static FaultData marshalFault(Map<String, Object> fault, Environment env) {
         
-        FaultDataImpl content = null;
+        FaultData content = null;
         byte[] toByteArray = marshallContent(fault, env);
-        content = new FaultDataImpl();
+        content = TaskModelProvider.getFactory().newFaultData();
         content.setContent(toByteArray);
         content.setType(fault.getClass().getCanonicalName());
         content.setAccessType(AccessType.Inline);
@@ -79,7 +82,7 @@ public class ContentMarshallerHelper {
 
     public static Object unmarshall(byte[] content, Environment env) {
         return unmarshall(content, env, null);
-    }
+    }   
 
     public static Object unmarshall(byte[] content, Environment env, ClassLoader classloader) {
         MarshallerReaderContext context = null;
@@ -100,25 +103,28 @@ public class ContentMarshallerHelper {
             }
             ExtensionRegistry registry = PersisterHelper.buildRegistry(context, null);
             Header _header = PersisterHelper.readFromStreamWithHeaderPreloaded(context, registry);
-            Variable parseFrom = JBPMMessages.Variable.parseFrom(_header.getPayload(), registry);
-            Object value = ProtobufProcessMarshaller.unmarshallVariableValue(context, parseFrom);
-
-            if (value instanceof Map) {
-                Map result = new HashMap();
-                Map<String, Variable> variablesMap = (Map<String, Variable>) value;
-                for (String key : variablesMap.keySet()) {
-                    result.put(key, ProtobufProcessMarshaller.unmarshallVariableValue(context, variablesMap.get(key)));
-                }
-                return result;
+            
+            try {
+	            VariableContainer parseFrom = JBPMMessages.VariableContainer.parseFrom(_header.getPayload(), registry);
+	            Map<String, Object> value = ProtobufProcessMarshaller.unmarshallVariableContainerValue(context, parseFrom);
+	            // in case there was single variable stored return only that variable and not map
+	            if (value.containsKey(SINGLE_VAR_KEY)) {
+	            	return value.get(SINGLE_VAR_KEY);
+	            }
+	
+	            return value;
+            } catch (Exception e) {
+            	// backward compatible fallback mechanism to ensure existing data can be read properly
+            	return fallbackParse(context, _header, registry);
             }
-            return value;
         } catch (Exception ex) {
-            ex.printStackTrace();
+        	logger.warn("Exception while unmarshaling content", ex);
         }
         return null;
     }
 
-    public static byte[] marshallContent(Object o, Environment env) {
+    @SuppressWarnings("unchecked")
+	public static byte[] marshallContent(Object o, Environment env) {
         MarshallerWriteContext context;
         try {
             MarshallingConfigurationImpl marshallingConfigurationImpl = null;
@@ -131,29 +137,39 @@ public class ContentMarshallerHelper {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
             context = new MarshallerWriteContext(stream, null, null, null, objectMarshallingStrategyStore, env);
-            Variable marshallVariable = null;
+            Map<String, Object> input = null;
             if (o instanceof Map) {
-                marshallVariable = ProtobufProcessMarshaller.marshallVariablesMap(
-                        context,
-                        (Map<String, Object>) o);
+            	input = (Map<String, Object>) o;
             } else {
-                marshallVariable = ProtobufProcessMarshaller.marshallVariable(
-                        context,
-                        "results",
-                        o);
+            	// in case there is only single variable to be stored place it into a map under special key
+            	input = new HashMap<String, Object>();
+            	input.put(SINGLE_VAR_KEY, o);
             }
-            PersisterHelper.writeToStreamWithHeader(
-                    context,
-                    marshallVariable);
+            Message marshallVariable = ProtobufProcessMarshaller.marshallVariablesContainer(context, input);
+            PersisterHelper.writeToStreamWithHeader(context, marshallVariable);
 
             context.close();
-
-
 
             return stream.toByteArray();
         } catch (IOException ex) {
             ex.printStackTrace();
         }
         return null;
+    }
+    
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+	private static Object fallbackParse(MarshallerReaderContext context, Header header, ExtensionRegistry registry) throws Exception {
+    	Variable parseFrom = JBPMMessages.Variable.parseFrom(header.getPayload(), registry);
+        Object value = ProtobufProcessMarshaller.unmarshallVariableValue(context, parseFrom);
+
+        if (value instanceof Map) {
+            Map result = new HashMap();
+            Map<String, Variable> variablesMap = (Map<String, Variable>) value;
+            for (String key : variablesMap.keySet()) {
+                result.put(key, ProtobufProcessMarshaller.unmarshallVariableValue(context, variablesMap.get(key)));
+            }
+            return result;
+        }
+        return value;
     }
 }

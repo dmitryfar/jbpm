@@ -1,258 +1,5 @@
-
-    alter table Attachment 
-        drop 
-        foreign key FK1C93543D937BFB5;
-
-    alter table Attachment 
-        drop 
-        foreign key FK1C9354333CA892A;
-
-    alter table BooleanExpression 
-        drop 
-        foreign key FKE3D208C06C97C90E;
-
-    alter table CorrelationPropertyInfo 
-        drop 
-        foreign key FK761452A5D87156ED;
-
-    alter table Deadline 
-        drop 
-        foreign key FK21DF3E78A9FE0EF4;
-
-    alter table Deadline 
-        drop 
-        foreign key FK21DF3E78695E4DDB;
-
-    alter table Delegation_delegates 
-        drop 
-        foreign key FK47485D5772B3A123;
-
-    alter table Delegation_delegates 
-        drop 
-        foreign key FK47485D57786553A5;
-
-    alter table ErrorInfo 
-        drop 
-        foreign key FK8B1186B6724A467;
-
-    alter table Escalation 
-        drop 
-        foreign key FK67B2C6B5D1E5CC1;
-
-    alter table EventTypes 
-        drop 
-        foreign key FKB0E5621F7665489A;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686BF4ACCD69;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686B424B187C;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686BAB648139;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686BB340A2AA;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686BF0CDED35;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686BCC03ED3C;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686B77C1C08A;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686B18DDFE05;
-
-    alter table I18NText 
-        drop 
-        foreign key FK2349686B78AF072A;
-
-    alter table Notification 
-        drop 
-        foreign key FK2D45DD0BC0C0F29C;
-
-    alter table Notification_BAs 
-        drop 
-        foreign key FK2DD68EE072B3A123;
-
-    alter table Notification_BAs 
-        drop 
-        foreign key FK2DD68EE093F2090B;
-
-    alter table Notification_Recipients 
-        drop 
-        foreign key FK98FD214E72B3A123;
-
-    alter table Notification_Recipients 
-        drop 
-        foreign key FK98FD214E93F2090B;
-
-    alter table Notification_email_header 
-        drop 
-        foreign key FKF30FE3448BED1339;
-
-    alter table Notification_email_header 
-        drop 
-        foreign key FKF30FE344DD2D7416;
-
-    alter table PeopleAssignments_BAs 
-        drop 
-        foreign key FK9D8CF4EC72B3A123;
-
-    alter table PeopleAssignments_BAs 
-        drop 
-        foreign key FK9D8CF4EC786553A5;
-
-    alter table PeopleAssignments_ExclOwners 
-        drop 
-        foreign key FKC77B97E472B3A123;
-
-    alter table PeopleAssignments_ExclOwners 
-        drop 
-        foreign key FKC77B97E4786553A5;
-
-    alter table PeopleAssignments_PotOwners 
-        drop 
-        foreign key FK1EE418D72B3A123;
-
-    alter table PeopleAssignments_PotOwners 
-        drop 
-        foreign key FK1EE418D786553A5;
-
-    alter table PeopleAssignments_Recipients 
-        drop 
-        foreign key FKC6F615C272B3A123;
-
-    alter table PeopleAssignments_Recipients 
-        drop 
-        foreign key FKC6F615C2786553A5;
-
-    alter table PeopleAssignments_Stakeholders 
-        drop 
-        foreign key FK482F79D572B3A123;
-
-    alter table PeopleAssignments_Stakeholders 
-        drop 
-        foreign key FK482F79D5786553A5;
-
-    alter table Reassignment 
-        drop 
-        foreign key FK724D056062A1E871;
-
-    alter table Reassignment_potentialOwners 
-        drop 
-        foreign key FK90B59CFF72B3A123;
-
-    alter table Reassignment_potentialOwners 
-        drop 
-        foreign key FK90B59CFF35D2FEE0;
-
-    alter table Task 
-        drop 
-        foreign key FK27A9A53C55C806;
-
-    alter table Task 
-        drop 
-        foreign key FK27A9A5B723BE8B;
-
-    alter table Task 
-        drop 
-        foreign key FK27A9A55427E8F1;
-
-    alter table task_comment 
-        drop 
-        foreign key FK61F475A57A3215D9;
-
-    alter table task_comment 
-        drop 
-        foreign key FK61F475A5F510CB46;
-
-    drop table if exists Attachment;
-
-    drop table if exists BAMTaskSummary;
-
-    drop table if exists BooleanExpression;
-
-    drop table if exists Content;
-
-    drop table if exists ContextMappingInfo;
-
-    drop table if exists CorrelationKeyInfo;
-
-    drop table if exists CorrelationPropertyInfo;
-
-    drop table if exists Deadline;
-
-    drop table if exists Delegation_delegates;
-
-    drop table if exists ErrorInfo;
-
-    drop table if exists Escalation;
-
-    drop table if exists EventTypes;
-
-    drop table if exists I18NText;
-
-    drop table if exists NodeInstanceLog;
-
-    drop table if exists Notification;
-
-    drop table if exists Notification_BAs;
-
-    drop table if exists Notification_Recipients;
-
-    drop table if exists Notification_email_header;
-
-    drop table if exists OrganizationalEntity;
-
-    drop table if exists PeopleAssignments_BAs;
-
-    drop table if exists PeopleAssignments_ExclOwners;
-
-    drop table if exists PeopleAssignments_PotOwners;
-
-    drop table if exists PeopleAssignments_Recipients;
-
-    drop table if exists PeopleAssignments_Stakeholders;
-
-    drop table if exists ProcessInstanceInfo;
-
-    drop table if exists ProcessInstanceLog;
-
-    drop table if exists Reassignment;
-
-    drop table if exists Reassignment_potentialOwners;
-
-    drop table if exists RequestInfo;
-
-    drop table if exists SessionInfo;
-
-    drop table if exists Task;
-
-    drop table if exists TaskDef;
-
-    drop table if exists VariableInstanceLog;
-
-    drop table if exists WorkItemInfo;
-
-    drop table if exists email_header;
-
-    drop table if exists task_comment;
-
     create table Attachment (
-        AttachmentId bigint not null auto_increment,
+        id bigint not null auto_increment,
         accessType integer,
         attachedAt datetime,
         attachmentContentId bigint not null,
@@ -261,11 +8,31 @@
         attachment_size integer,
         attachedBy_id varchar(255),
         TaskData_Attachments_Id bigint,
-        primary key (AttachmentId)
-    ) type=InnoDB;
+        primary key (id)
+    ) ENGINE=InnoDB;
+
+    create table AuditTaskImpl (
+        id bigint not null auto_increment,
+        activationTime date,
+        actualOwner varchar(255),
+        createdBy varchar(255),
+        createdOn date,
+        deploymentId varchar(255),
+        description varchar(255),
+        dueDate date,
+        name varchar(255),
+        parentId bigint not null,
+        priority integer not null,
+        processId varchar(255),
+        processInstanceId bigint not null,
+        processSessionId integer not null,
+        status varchar(255),
+        taskId bigint,
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table BAMTaskSummary (
-        BAMTaskId bigint not null auto_increment,
+        pk bigint not null auto_increment,
         createdDate datetime,
         duration bigint,
         endDate datetime,
@@ -275,8 +42,9 @@
         taskId bigint not null,
         taskName varchar(255),
         userId varchar(255),
-        primary key (BAMTaskId)
-    ) type=InnoDB;
+        OPTLOCK integer,
+        primary key (pk)
+    ) ENGINE=InnoDB;
 
     create table BooleanExpression (
         id bigint not null auto_increment,
@@ -284,21 +52,22 @@
         type varchar(255),
         Escalation_Constraints_Id bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Content (
         id bigint not null auto_increment,
         content longblob,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table ContextMappingInfo (
         mappingId bigint not null auto_increment,
         CONTEXT_ID varchar(255) not null,
         KSESSION_ID integer not null,
+        OWNER_ID varchar(255),
         OPTLOCK integer,
         primary key (mappingId)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table CorrelationKeyInfo (
         keyId bigint not null auto_increment,
@@ -306,7 +75,7 @@
         processInstanceId bigint not null,
         OPTLOCK integer,
         primary key (keyId)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table CorrelationPropertyInfo (
         propertyId bigint not null auto_increment,
@@ -315,7 +84,7 @@
         OPTLOCK integer,
         correlationKey_keyId bigint,
         primary key (propertyId)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Deadline (
         id bigint not null auto_increment,
@@ -324,36 +93,46 @@
         Deadlines_StartDeadLine_Id bigint,
         Deadlines_EndDeadLine_Id bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Delegation_delegates (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
+
+    create table DeploymentStore (
+        id bigint not null auto_increment,
+        attributes varchar(255),
+        DEPLOYMENT_ID varchar(255),
+        deploymentUnit longtext,
+        state integer,
+        updateDate datetime,
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table ErrorInfo (
         id bigint not null auto_increment,
         message varchar(255),
-        stacktrace longtext,
+        stacktrace varchar(5000),
         timestamp datetime,
         REQUEST_ID bigint not null,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Escalation (
         id bigint not null auto_increment,
         name varchar(255),
         Deadline_Escalation_Id bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table EventTypes (
         InstanceId bigint not null,
-        eventTypes varchar(255)
-    ) type=InnoDB;
+        element varchar(255)
+    ) ENGINE=InnoDB;
 
     create table I18NText (
-        I18NTextId bigint not null auto_increment,
+        id bigint not null auto_increment,
         language varchar(255),
         shortText varchar(255),
         text longtext,
@@ -366,8 +145,8 @@
         Notification_Documentation_Id bigint,
         Notification_Descriptions_Id bigint,
         Deadline_Documentation_Id bigint,
-        primary key (I18NTextId)
-    ) type=InnoDB;
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table NodeInstanceLog (
         id bigint not null auto_increment,
@@ -383,63 +162,63 @@
         type integer not null,
         workItemId bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Notification (
         DTYPE varchar(31) not null,
-        NotificationId bigint not null auto_increment,
+        id bigint not null auto_increment,
         priority integer not null,
         Escalation_Notifications_Id bigint,
-        primary key (NotificationId)
-    ) type=InnoDB;
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table Notification_BAs (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Notification_Recipients (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Notification_email_header (
-        Notification_NotificationId bigint not null,
+        Notification_id bigint not null,
         emailHeaders_id bigint not null,
         mapkey varchar(255) not null,
-        primary key (Notification_NotificationId, mapkey)
-    ) type=InnoDB;
+        primary key (Notification_id, mapkey)
+    ) ENGINE=InnoDB;
 
     create table OrganizationalEntity (
         DTYPE varchar(31) not null,
         id varchar(255) not null,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table PeopleAssignments_BAs (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table PeopleAssignments_ExclOwners (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table PeopleAssignments_PotOwners (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table PeopleAssignments_Recipients (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table PeopleAssignments_Stakeholders (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table ProcessInstanceInfo (
         InstanceId bigint not null auto_increment,
@@ -451,7 +230,7 @@
         state integer not null,
         OPTLOCK integer,
         primary key (InstanceId)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table ProcessInstanceLog (
         id bigint not null auto_increment,
@@ -462,24 +241,25 @@
         outcome varchar(255),
         parentProcessInstanceId bigint,
         processId varchar(255),
+        processInstanceDescription varchar(255),
         processInstanceId bigint not null,
         processName varchar(255),
         processVersion varchar(255),
         start_date datetime,
         status integer,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Reassignment (
         id bigint not null auto_increment,
         Escalation_Reassignments_Id bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Reassignment_potentialOwners (
         task_id bigint not null,
         entity_id varchar(255) not null
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table RequestInfo (
         id bigint not null auto_increment,
@@ -488,13 +268,14 @@
         executions integer not null,
         businessKey varchar(255),
         message varchar(255),
+        owner varchar(255),
         requestData longblob,
         responseData longblob,
         retries integer not null,
         status varchar(255),
         timestamp datetime,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table SessionInfo (
         id integer not null auto_increment,
@@ -503,15 +284,18 @@
         startDate datetime,
         OPTLOCK integer,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table Task (
-        TaskId bigint not null auto_increment,
+        id bigint not null auto_increment,
         archived smallint,
         allowedToDelegate varchar(255),
+        description varchar(255),
         formName varchar(255),
+        name varchar(255),
         priority integer not null,
         subTaskStrategy varchar(255),
+        subject varchar(255),
         activationTime datetime,
         createdOn datetime,
         deploymentId varchar(255),
@@ -539,15 +323,27 @@
         taskInitiator_id varchar(255),
         actualOwner_id varchar(255),
         createdBy_id varchar(255),
-        primary key (TaskId)
-    ) type=InnoDB;
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table TaskDef (
-        TaskDefId bigint not null auto_increment,
+        id bigint not null auto_increment,
         name varchar(255),
         priority integer not null,
-        primary key (TaskDefId)
-    ) type=InnoDB;
+        primary key (id)
+    ) ENGINE=InnoDB;
+
+    create table TaskEvent (
+        id bigint not null auto_increment,
+        logTime datetime,
+        processInstanceId bigint,
+        taskId bigint,
+        type varchar(255),
+        userId varchar(255),
+        OPTLOCK integer,
+        workItemId bigint,
+        primary key (id)
+    ) ENGINE=InnoDB;
 
     create table VariableInstanceLog (
         id bigint not null auto_increment,
@@ -560,7 +356,7 @@
         variableId varchar(255),
         variableInstanceId varchar(255),
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table WorkItemInfo (
         workItemId bigint not null auto_increment,
@@ -571,7 +367,7 @@
         OPTLOCK integer,
         workItemByteArray longblob,
         primary key (workItemId)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table email_header (
         id bigint not null auto_increment,
@@ -581,7 +377,7 @@
         replyToAddress varchar(255),
         subject varchar(255),
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     create table task_comment (
         id bigint not null auto_increment,
@@ -590,7 +386,7 @@
         addedBy_id varchar(255),
         TaskData_Comments_Id bigint,
         primary key (id)
-    ) type=InnoDB;
+    ) ENGINE=InnoDB;
 
     alter table Attachment 
         add index FK1C93543D937BFB5 (attachedBy_id), 
@@ -602,7 +398,7 @@
         add index FK1C9354333CA892A (TaskData_Attachments_Id), 
         add constraint FK1C9354333CA892A 
         foreign key (TaskData_Attachments_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table BooleanExpression 
         add index FKE3D208C06C97C90E (Escalation_Constraints_Id), 
@@ -620,13 +416,13 @@
         add index FK21DF3E78A9FE0EF4 (Deadlines_StartDeadLine_Id), 
         add constraint FK21DF3E78A9FE0EF4 
         foreign key (Deadlines_StartDeadLine_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table Deadline 
         add index FK21DF3E78695E4DDB (Deadlines_EndDeadLine_Id), 
         add constraint FK21DF3E78695E4DDB 
         foreign key (Deadlines_EndDeadLine_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table Delegation_delegates 
         add index FK47485D5772B3A123 (entity_id), 
@@ -638,7 +434,10 @@
         add index FK47485D57786553A5 (task_id), 
         add constraint FK47485D57786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
+
+    alter table DeploymentStore 
+        add constraint UK_DeploymentStore_1 unique (DEPLOYMENT_ID);
 
     alter table ErrorInfo 
         add index FK8B1186B6724A467 (REQUEST_ID), 
@@ -662,19 +461,19 @@
         add index FK2349686BF4ACCD69 (Task_Subjects_Id), 
         add constraint FK2349686BF4ACCD69 
         foreign key (Task_Subjects_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table I18NText 
         add index FK2349686B424B187C (Task_Names_Id), 
         add constraint FK2349686B424B187C 
         foreign key (Task_Names_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table I18NText 
         add index FK2349686BAB648139 (Task_Descriptions_Id), 
         add constraint FK2349686BAB648139 
         foreign key (Task_Descriptions_Id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table I18NText 
         add index FK2349686BB340A2AA (Reassignment_Documentation_Id), 
@@ -686,25 +485,25 @@
         add index FK2349686BF0CDED35 (Notification_Subjects_Id), 
         add constraint FK2349686BF0CDED35 
         foreign key (Notification_Subjects_Id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table I18NText 
         add index FK2349686BCC03ED3C (Notification_Names_Id), 
         add constraint FK2349686BCC03ED3C 
         foreign key (Notification_Names_Id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table I18NText 
         add index FK2349686B77C1C08A (Notification_Documentation_Id), 
         add constraint FK2349686B77C1C08A 
         foreign key (Notification_Documentation_Id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table I18NText 
         add index FK2349686B18DDFE05 (Notification_Descriptions_Id), 
         add constraint FK2349686B18DDFE05 
         foreign key (Notification_Descriptions_Id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table I18NText 
         add index FK2349686B78AF072A (Deadline_Documentation_Id), 
@@ -728,7 +527,7 @@
         add index FK2DD68EE093F2090B (task_id), 
         add constraint FK2DD68EE093F2090B 
         foreign key (task_id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table Notification_Recipients 
         add index FK98FD214E72B3A123 (entity_id), 
@@ -740,7 +539,7 @@
         add index FK98FD214E93F2090B (task_id), 
         add constraint FK98FD214E93F2090B 
         foreign key (task_id) 
-        references Notification (NotificationId);
+        references Notification (id);
 
     alter table Notification_email_header 
         add constraint UK_F30FE3446CEA0510 unique (emailHeaders_id);
@@ -752,10 +551,10 @@
         references email_header (id);
 
     alter table Notification_email_header 
-        add index FKF30FE344DD2D7416 (Notification_NotificationId), 
-        add constraint FKF30FE344DD2D7416 
-        foreign key (Notification_NotificationId) 
-        references Notification (NotificationId);
+        add index FKF30FE3443E3E97EB (Notification_id), 
+        add constraint FKF30FE3443E3E97EB 
+        foreign key (Notification_id) 
+        references Notification (id);
 
     alter table PeopleAssignments_BAs 
         add index FK9D8CF4EC72B3A123 (entity_id), 
@@ -767,7 +566,7 @@
         add index FK9D8CF4EC786553A5 (task_id), 
         add constraint FK9D8CF4EC786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table PeopleAssignments_ExclOwners 
         add index FKC77B97E472B3A123 (entity_id), 
@@ -779,7 +578,7 @@
         add index FKC77B97E4786553A5 (task_id), 
         add constraint FKC77B97E4786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table PeopleAssignments_PotOwners 
         add index FK1EE418D72B3A123 (entity_id), 
@@ -791,7 +590,7 @@
         add index FK1EE418D786553A5 (task_id), 
         add constraint FK1EE418D786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table PeopleAssignments_Recipients 
         add index FKC6F615C272B3A123 (entity_id), 
@@ -803,7 +602,7 @@
         add index FKC6F615C2786553A5 (task_id), 
         add constraint FKC6F615C2786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table PeopleAssignments_Stakeholders 
         add index FK482F79D572B3A123 (entity_id), 
@@ -815,7 +614,7 @@
         add index FK482F79D5786553A5 (task_id), 
         add constraint FK482F79D5786553A5 
         foreign key (task_id) 
-        references Task (TaskId);
+        references Task (id);
 
     alter table Reassignment 
         add index FK724D056062A1E871 (Escalation_Reassignments_Id), 
@@ -863,4 +662,4 @@
         add index FK61F475A5F510CB46 (TaskData_Comments_Id), 
         add constraint FK61F475A5F510CB46 
         foreign key (TaskData_Comments_Id) 
-        references Task (TaskId);
+        references Task (id);

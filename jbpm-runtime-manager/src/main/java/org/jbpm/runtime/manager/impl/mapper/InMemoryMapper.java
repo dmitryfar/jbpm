@@ -22,8 +22,8 @@ import org.kie.api.runtime.manager.Context;
 import org.kie.internal.runtime.manager.Mapper;
 
 /**
- * In memory implementation of context to <code>KieSession</code> identifier mapping.
- * Used only when <code>RuntimeManager</code> is used without persistence. 
+ * An in-memory implementation of the context to <code>KieSession</code> identifier mapping.
+ * Used only when the <code>RuntimeManager</code> is used without persistence. 
  *
  */
 public class InMemoryMapper implements Mapper {
@@ -32,22 +32,22 @@ public class InMemoryMapper implements Mapper {
     
     
     @Override
-    public void saveMapping(Context<?> context, Integer ksessionId) {
+    public void saveMapping(Context<?> context, Integer ksessionId, String ownerId) {
         this.mapping.put(context.getContextId(), ksessionId);
     }
 
     @Override
-    public Integer findMapping(Context<?> context) {
+    public Integer findMapping(Context<?> context, String ownerId) {
         return this.mapping.get(context.getContextId());
     }
 
     @Override
-    public void removeMapping(Context<?> context) {
+    public void removeMapping(Context<?> context, String ownerId) {
         this.mapping.remove(context.getContextId());
     }
 
     @Override
-    public Object findContextId(Integer ksessionId) {
+    public Object findContextId(Integer ksessionId, String ownerId) {
         if (mapping.containsValue(ksessionId)) {
             for (Map.Entry<Object, Integer> entry : mapping.entrySet()) {
                 if (entry.getValue() == ksessionId) {
@@ -58,4 +58,7 @@ public class InMemoryMapper implements Mapper {
         return null;
     }
 
+    public boolean hasContext(Integer ksessionId) {
+    	return mapping.containsValue(ksessionId);
+    }
 }

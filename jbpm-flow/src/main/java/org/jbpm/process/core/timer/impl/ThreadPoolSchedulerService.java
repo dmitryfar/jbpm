@@ -69,7 +69,15 @@ public class ThreadPoolSchedulerService implements GlobalSchedulerService {
 
     @Override
     public void shutdown() {
-        this.scheduler.shutdownNow();
+        try {
+        	this.scheduler.shutdown();
+            if ( !this.scheduler.awaitTermination( 10, TimeUnit.SECONDS ) ) {
+            	this.scheduler.shutdownNow();
+            }
+        } catch ( InterruptedException e ) {
+        	this.scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
@@ -202,5 +210,15 @@ public class ThreadPoolSchedulerService implements GlobalSchedulerService {
         this.interceptor = interceptor;        
     }
 
+	@Override
+	public boolean retryEnabled() {
+		return true;
+	}
 
+
+	@Override
+	public boolean isValid(GlobalJobHandle jobHandle) {
+		
+		return true;
+	}
 }

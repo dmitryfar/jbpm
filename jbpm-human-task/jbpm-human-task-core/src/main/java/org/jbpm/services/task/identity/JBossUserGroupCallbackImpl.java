@@ -15,7 +15,7 @@
  */
 package org.jbpm.services.task.identity;
 
-import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,43 +25,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import javax.enterprise.inject.Alternative;
 
-import org.jbpm.shared.services.cdi.Selectable;
 import org.kie.internal.task.api.UserGroupCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Alternative
-@Selectable
-public class JBossUserGroupCallbackImpl implements UserGroupCallback {
+public class JBossUserGroupCallbackImpl extends AbstractUserGroupInfo implements UserGroupCallback {
 	
 	private static final Logger logger = LoggerFactory.getLogger(JBossUserGroupCallbackImpl.class);
+
+	private static final String DEFAULT_PROPERTIES_LOCATION = "file:" + System.getProperty("jboss.server.config.dir") + "/roles.properties";
 
 	private Map<String, List<String>> groupStore = new HashMap<String, List<String>>();
 	private Set<String> allgroups = new HashSet<String>();
 	
-	public JBossUserGroupCallbackImpl() {
-		this(System.getProperty("jbpm.user.group.mapping", "file:" + System.getProperty("jboss.server.config.dir") + "/roles.properties"));
+	//no no-arg constructor to prevent cdi from auto deploy
+	public JBossUserGroupCallbackImpl(boolean activate) {
+		this(System.getProperty("jbpm.user.group.mapping"));
 	}
 	
 	public JBossUserGroupCallbackImpl(String location) {
-		URL locationUrl = null;
-		Properties userGroups = null;
-		try {
-			if (location.startsWith("classpath:")) {
-				String stripedLocation = location.replaceFirst("classpath:", "");
-				locationUrl = this.getClass().getResource(stripedLocation);
-			} else {
-				locationUrl = new URL(location);
-			}
-			
-			userGroups = new Properties();
-			userGroups.load(locationUrl.openStream());
-		} catch (Exception e) {
-			logger.error("Error when loading group information for callback from location: " + location, e);
-		}
 		
+		Properties userGroups = readProperties(location, DEFAULT_PROPERTIES_LOCATION);
+		logger.debug("Loaded properties {}", userGroups);
 		init(userGroups);
 	}
 	
@@ -106,6 +92,9 @@ public class JBossUserGroupCallbackImpl implements UserGroupCallback {
 			List<String> allExistingGroupIds) {
 		
 		List<String> groups = groupStore.get(userId);
+		if( groups == null ) { 
+		    groups = new ArrayList<String>(0);
+		}
 		return groups;
 	}
 	

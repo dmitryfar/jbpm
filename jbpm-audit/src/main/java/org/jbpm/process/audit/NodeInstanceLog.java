@@ -32,10 +32,8 @@ import org.jbpm.process.audit.event.AuditEvent;
 
 @Entity
 @SequenceGenerator(name="nodeInstanceLogIdSeq", sequenceName="NODE_INST_LOG_ID_SEQ", allocationSize=1)
-public class NodeInstanceLog implements Serializable, AuditEvent {
-    
-	public static final int TYPE_ENTER = 0;
-	public static final int TYPE_EXIT = 1;
+public class NodeInstanceLog implements Serializable, AuditEvent, org.kie.api.runtime.manager.audit.NodeInstanceLog {
+   
 	
 	private static final long serialVersionUID = 510l;
 	
@@ -74,11 +72,11 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
         this.date = new Date();
     }
 	
-	public int getType() {
+	public Integer getType() {
 		return type;
 	}
 	
-	void setType(int type) {
+	public void setType(int type) {
 		this.type = type;
 	}
     
@@ -90,11 +88,11 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
 		this.id = id;
 	}
 
-    public long getProcessInstanceId() {
+    public Long getProcessInstanceId() {
         return processInstanceId;
     }
     
-	void setProcessInstanceId(long processInstanceId) {
+	public void setProcessInstanceId(long processInstanceId) {
 		this.processInstanceId = processInstanceId;
 	}
 
@@ -102,7 +100,7 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
         return processId;
     }
     
-	void setProcessId(String processId) {
+	public void setProcessId(String processId) {
 		this.processId = processId;
 	}
 
@@ -110,7 +108,7 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
 		return nodeInstanceId;
 	}
 
-	void setNodeInstanceId(String nodeInstanceId) {
+	public void setNodeInstanceId(String nodeInstanceId) {
 		this.nodeInstanceId = nodeInstanceId;
 	}
 
@@ -118,7 +116,7 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
 		return nodeId;
 	}
 
-	void setNodeId(String nodeId) {
+	public void setNodeId(String nodeId) {
 		this.nodeId = nodeId;
 	}
 	
@@ -126,7 +124,7 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
 		return nodeName;
 	}
 	
-	void setNodeName(String nodeName) {
+	public void setNodeName(String nodeName) {
 		this.nodeName = nodeName;
 	}
 
@@ -134,7 +132,7 @@ public class NodeInstanceLog implements Serializable, AuditEvent {
         return date;
     }
     
-	void setDate(Date date) {
+	public void setDate(Date date) {
 		this.date = date;
 	}
 

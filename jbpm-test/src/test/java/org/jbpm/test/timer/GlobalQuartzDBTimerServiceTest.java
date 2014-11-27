@@ -9,7 +9,7 @@ import org.drools.core.time.TimerService;
 import org.jbpm.process.core.timer.TimerServiceRegistry;
 import org.jbpm.process.core.timer.impl.GlobalTimerService;
 import org.jbpm.process.core.timer.impl.QuartzSchedulerService;
-import org.jbpm.runtime.manager.impl.RuntimeEnvironmentBuilder;
+import org.jbpm.runtime.manager.impl.AbstractRuntimeManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -20,14 +20,16 @@ import org.junit.runners.Parameterized.Parameters;
 import org.kie.api.event.process.DefaultProcessEventListener;
 import org.kie.api.event.process.ProcessEventListener;
 import org.kie.api.event.process.ProcessNodeLeftEvent;
+import org.kie.api.event.process.ProcessStartedEvent;
 import org.kie.api.io.ResourceType;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.RuntimeEngine;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
+import org.kie.api.runtime.manager.RuntimeEnvironmentBuilder;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
 import org.kie.api.runtime.process.ProcessInstance;
 import org.kie.internal.io.ResourceFactory;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 
 @RunWith(Parameterized.class)
@@ -66,19 +68,66 @@ public class GlobalQuartzDBTimerServiceTest extends GlobalTimerServiceBaseTest {
     }   
     
     @Override
-    protected RuntimeManager getManager(RuntimeEnvironment environment) {
-        if (managerType ==1) {
-            return RuntimeManagerFactory.Factory.get().newSingletonRuntimeManager(environment);
+    protected RuntimeManager getManager(RuntimeEnvironment environment, boolean waitOnStart) {
+        RuntimeManager manager = null;
+    	if (managerType ==1) {
+    		manager = RuntimeManagerFactory.Factory.get().newSingletonRuntimeManager(environment);
         } else if (managerType == 2) {
-            return RuntimeManagerFactory.Factory.get().newPerRequestRuntimeManager(environment);
+        	manager = RuntimeManagerFactory.Factory.get().newPerRequestRuntimeManager(environment);
         } else if (managerType == 3) {
-            return RuntimeManagerFactory.Factory.get().newPerProcessInstanceRuntimeManager(environment);
+        	manager = RuntimeManagerFactory.Factory.get().newPerProcessInstanceRuntimeManager(environment);
         } else {
             throw new IllegalArgumentException("Invalid runtime maanger type");
         }
+    	if (waitOnStart) {
+	    	// wait for the 2 seconds (default startup delay for quartz)
+	    	try {
+				Thread.sleep(2000);
+			} catch (InterruptedException e) {
+				// do nothing
+			}
+    	}
+    	return manager;
     }
 
     
+    @Test
+    public void testTimerStartManagerClose() throws Exception {
+        QuartzSchedulerService additionalCopy = new QuartzSchedulerService();
+        additionalCopy.initScheduler(null);
+        // prepare listener to assert results
+        final List<Long> timerExporations = new ArrayList<Long>();
+        ProcessEventListener listener = new DefaultProcessEventListener(){
+
+            @Override
+            public void beforeProcessStarted(ProcessStartedEvent event) {
+                timerExporations.add(event.getProcessInstance().getId());
+            }
+
+ 
+            
+        };
+        
+        environment = RuntimeEnvironmentBuilder.Factory.get()
+    			.newDefaultBuilder()
+                .addAsset(ResourceFactory.newClassPathResource("BPMN2-TimerStart2.bpmn2"), ResourceType.BPMN2)
+                .schedulerService(globalScheduler)
+                .registerableItemsFactory(new TestRegisterableItemsFactory(listener))
+                .get();
+        
+        manager = getManager(environment, false);
+        RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get());
+        KieSession ksession = runtime.getKieSession();
+        
+        assertEquals(0, timerExporations.size());
+       
+        Thread.sleep(3600);
+        manager.disposeRuntimeEngine(runtime);
+        ((AbstractRuntimeManager)manager).close(true);
+        Thread.sleep(3000);
+        assertEquals(3, timerExporations.size());
+        additionalCopy.shutdown();
+    }
     
     /**
      * Test that illustrates that jobs are persisted and survives server restart
@@ -90,7 +139,8 @@ public class GlobalQuartzDBTimerServiceTest extends GlobalTimerServiceBaseTest {
     @Test 
     @Ignore
     public void testAbortGlobalTestService() throws Exception {
-        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.getDefault()
+        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.Factory.get()
+    			.newDefaultBuilder()
                 .addAsset(ResourceFactory.newClassPathResource("BPMN2-IntermediateCatchEventTimerCycle3.bpmn2"), ResourceType.BPMN2)
                 .addConfiguration("drools.timerService", "org.jbpm.process.core.timer.impl.RegisteredTimerServiceDelegate")
                 .get();
@@ -138,7 +188,8 @@ public class GlobalQuartzDBTimerServiceTest extends GlobalTimerServiceBaseTest {
     @Test
     @Ignore
     public void testContinueGlobalTestService() throws Exception {
-        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.getDefault()
+        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.Factory.get()
+    			.newDefaultBuilder()
                 .addAsset(ResourceFactory.newClassPathResource("BPMN2-IntermediateCatchEventTimerCycle2.bpmn2"), ResourceType.BPMN2)
                 .addConfiguration("drools.timerService", "org.jbpm.process.core.timer.impl.RegisteredTimerServiceDelegate")
                 .get();
@@ -168,4 +219,57 @@ public class GlobalQuartzDBTimerServiceTest extends GlobalTimerServiceBaseTest {
         
     }
 
+    @Test
+    public void testContinueTimer() throws Exception {
+        // JBPM-4443
+
+        // prepare listener to assert results
+        final List<Long> timerExporations = new ArrayList<Long>();
+        ProcessEventListener listener = new DefaultProcessEventListener(){
+            @Override
+            public void afterNodeLeft(ProcessNodeLeftEvent event) {
+                if (event.getNodeInstance().getNodeName().equals("timer")) {
+                    timerExporations.add(event.getProcessInstance().getId());
+                }
+            }
+        };
+
+        // No special configuration for TimerService in order to test RuntimeManager default
+        environment = RuntimeEnvironmentBuilder.Factory.get()
+                .newDefaultBuilder()
+                .addAsset(ResourceFactory.newClassPathResource("BPMN2-IntermediateCatchEventTimerCycle4.bpmn2"), ResourceType.BPMN2)
+                .registerableItemsFactory(new TestRegisterableItemsFactory(listener))
+                .get();
+        manager = getManager(environment, true);
+
+        RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get());
+        KieSession ksession = runtime.getKieSession();
+
+        ProcessInstance processInstance = ksession.startProcess("IntermediateCatchEvent");
+
+        Thread.sleep(5000); // Make sure a Timer is triggered once
+
+        assertEquals(1, timerExporations.size());
+
+        manager.disposeRuntimeEngine(runtime);
+        manager.close();
+
+        Thread.sleep(5000); // Wait so the timer gets overdue
+
+        // ---- restart ----
+
+        environment = RuntimeEnvironmentBuilder.Factory.get()
+                .newDefaultBuilder()
+                .addAsset(ResourceFactory.newClassPathResource("BPMN2-IntermediateCatchEventTimerCycle4.bpmn2"), ResourceType.BPMN2)
+                .registerableItemsFactory(new TestRegisterableItemsFactory(listener))
+                .get();
+        manager = getManager(environment, true);
+
+        Thread.sleep(2000);
+
+        assertEquals(2, timerExporations.size());
+
+        manager.disposeRuntimeEngine(runtime);
+        manager.close();
+    }
 }

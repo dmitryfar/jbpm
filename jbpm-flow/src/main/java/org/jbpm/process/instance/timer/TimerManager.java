@@ -44,6 +44,7 @@ import org.jbpm.marshalling.impl.ProtobufProcessMarshaller;
 import org.jbpm.process.core.timer.impl.RegisteredTimerServiceDelegate;
 import org.jbpm.process.instance.InternalProcessRuntime;
 import org.jbpm.process.instance.ProcessInstance;
+import org.jbpm.process.instance.ProcessRuntimeImpl;
 import org.jbpm.workflow.instance.impl.WorkflowProcessInstanceImpl;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.time.SessionClock;
@@ -113,6 +114,8 @@ public class TimerManager {
             if (timer.getCronExpression() != null) {
                 Date startTime = new Date(timerService.getCurrentTime() + 1000);
                 trigger = new CronTrigger(timerService.getCurrentTime(), startTime, null, -1, timer.getCronExpression(), null, null);
+                // cron timers are by nature repeatable
+                timer.setPeriod(1);
             } else {
                 trigger = new IntervalTrigger(timerService.getCurrentTime(), null, null, timer.getRepeatLimit(), timer.getDelay(),
                         timer.getPeriod(), null, null);
@@ -156,11 +159,18 @@ public class TimerManager {
     }
 
     public void cancelTimer(long timerId) {
-
-        TimerInstance timer = timers.remove(timerId);
-        if (timer != null) {
-            timerService.removeJob(timer.getJobHandle());
-        }
+		try {
+			kruntime.startOperation();
+			if (!kruntime.getActionQueue().isEmpty()) {
+				kruntime.executeQueuedActions();
+			}
+			TimerInstance timer = timers.remove(timerId);
+			if (timer != null) {
+				timerService.removeJob(timer.getJobHandle());
+			}
+		} finally {
+			kruntime.endOperation();
+		}
     }
 
     public void dispose() {
@@ -290,6 +300,7 @@ public class TimerManager {
 
                 if (ctx.getTimer().getPeriod() == 0) {
                     tm.getTimerMap().remove(ctx.getTimer().getId());
+                    tm.getTimerService().removeJob(ctx.getJobHandle());
                 }
 
             } catch (Throwable e) {
@@ -322,12 +333,13 @@ public class TimerManager {
                 if (ctx.getTrigger().hasNextFireTime() == null) {
                     ctx.getTimer().setPeriod(0);
                 }
-                kruntime.startProcess(ctx.getProcessId(), ctx.getParamaeters());
+                ((ProcessRuntimeImpl)kruntime.getProcessRuntime()).startProcess(ctx.getProcessId(), ctx.getParamaeters(), "timer");
 
                 TimerManager tm = ((InternalProcessRuntime) ctx.getKnowledgeRuntime().getProcessRuntime()).getTimerManager();
 
                 if (ctx.getTimer().getPeriod() == 0) {
                     tm.getTimerMap().remove(ctx.getTimer().getId());
+                    tm.getTimerService().removeJob(ctx.getJobHandle());
                 }
 
             } catch (Throwable e) {

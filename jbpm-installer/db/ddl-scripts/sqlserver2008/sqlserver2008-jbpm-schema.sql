@@ -1,213 +1,5 @@
-
-    alter table Attachment 
-        drop constraint FK1C93543D937BFB5;
-
-    alter table Attachment 
-        drop constraint FK1C9354333CA892A;
-
-    alter table BooleanExpression 
-        drop constraint FKE3D208C06C97C90E;
-
-    alter table CorrelationPropertyInfo 
-        drop constraint FK761452A5D87156ED;
-
-    alter table Deadline 
-        drop constraint FK21DF3E78A9FE0EF4;
-
-    alter table Deadline 
-        drop constraint FK21DF3E78695E4DDB;
-
-    alter table Delegation_delegates 
-        drop constraint FK47485D5772B3A123;
-
-    alter table Delegation_delegates 
-        drop constraint FK47485D57786553A5;
-
-    alter table ErrorInfo 
-        drop constraint FK8B1186B6724A467;
-
-    alter table Escalation 
-        drop constraint FK67B2C6B5D1E5CC1;
-
-    alter table EventTypes 
-        drop constraint FKB0E5621F7665489A;
-
-    alter table I18NText 
-        drop constraint FK2349686BF4ACCD69;
-
-    alter table I18NText 
-        drop constraint FK2349686B424B187C;
-
-    alter table I18NText 
-        drop constraint FK2349686BAB648139;
-
-    alter table I18NText 
-        drop constraint FK2349686BB340A2AA;
-
-    alter table I18NText 
-        drop constraint FK2349686BF0CDED35;
-
-    alter table I18NText 
-        drop constraint FK2349686BCC03ED3C;
-
-    alter table I18NText 
-        drop constraint FK2349686B77C1C08A;
-
-    alter table I18NText 
-        drop constraint FK2349686B18DDFE05;
-
-    alter table I18NText 
-        drop constraint FK2349686B78AF072A;
-
-    alter table Notification 
-        drop constraint FK2D45DD0BC0C0F29C;
-
-    alter table Notification_BAs 
-        drop constraint FK2DD68EE072B3A123;
-
-    alter table Notification_BAs 
-        drop constraint FK2DD68EE093F2090B;
-
-    alter table Notification_Recipients 
-        drop constraint FK98FD214E72B3A123;
-
-    alter table Notification_Recipients 
-        drop constraint FK98FD214E93F2090B;
-
-    alter table Notification_email_header 
-        drop constraint FKF30FE3448BED1339;
-
-    alter table Notification_email_header 
-        drop constraint FKF30FE344DD2D7416;
-
-    alter table PeopleAssignments_BAs 
-        drop constraint FK9D8CF4EC72B3A123;
-
-    alter table PeopleAssignments_BAs 
-        drop constraint FK9D8CF4EC786553A5;
-
-    alter table PeopleAssignments_ExclOwners 
-        drop constraint FKC77B97E472B3A123;
-
-    alter table PeopleAssignments_ExclOwners 
-        drop constraint FKC77B97E4786553A5;
-
-    alter table PeopleAssignments_PotOwners 
-        drop constraint FK1EE418D72B3A123;
-
-    alter table PeopleAssignments_PotOwners 
-        drop constraint FK1EE418D786553A5;
-
-    alter table PeopleAssignments_Recipients 
-        drop constraint FKC6F615C272B3A123;
-
-    alter table PeopleAssignments_Recipients 
-        drop constraint FKC6F615C2786553A5;
-
-    alter table PeopleAssignments_Stakeholders 
-        drop constraint FK482F79D572B3A123;
-
-    alter table PeopleAssignments_Stakeholders 
-        drop constraint FK482F79D5786553A5;
-
-    alter table Reassignment 
-        drop constraint FK724D056062A1E871;
-
-    alter table Reassignment_potentialOwners 
-        drop constraint FK90B59CFF72B3A123;
-
-    alter table Reassignment_potentialOwners 
-        drop constraint FK90B59CFF35D2FEE0;
-
-    alter table Task 
-        drop constraint FK27A9A53C55C806;
-
-    alter table Task 
-        drop constraint FK27A9A5B723BE8B;
-
-    alter table Task 
-        drop constraint FK27A9A55427E8F1;
-
-    alter table task_comment 
-        drop constraint FK61F475A57A3215D9;
-
-    alter table task_comment 
-        drop constraint FK61F475A5F510CB46;
-
-    drop table Attachment;
-
-    drop table BAMTaskSummary;
-
-    drop table BooleanExpression;
-
-    drop table Content;
-
-    drop table ContextMappingInfo;
-
-    drop table CorrelationKeyInfo;
-
-    drop table CorrelationPropertyInfo;
-
-    drop table Deadline;
-
-    drop table Delegation_delegates;
-
-    drop table ErrorInfo;
-
-    drop table Escalation;
-
-    drop table EventTypes;
-
-    drop table I18NText;
-
-    drop table NodeInstanceLog;
-
-    drop table Notification;
-
-    drop table Notification_BAs;
-
-    drop table Notification_Recipients;
-
-    drop table Notification_email_header;
-
-    drop table OrganizationalEntity;
-
-    drop table PeopleAssignments_BAs;
-
-    drop table PeopleAssignments_ExclOwners;
-
-    drop table PeopleAssignments_PotOwners;
-
-    drop table PeopleAssignments_Recipients;
-
-    drop table PeopleAssignments_Stakeholders;
-
-    drop table ProcessInstanceInfo;
-
-    drop table ProcessInstanceLog;
-
-    drop table Reassignment;
-
-    drop table Reassignment_potentialOwners;
-
-    drop table RequestInfo;
-
-    drop table SessionInfo;
-
-    drop table Task;
-
-    drop table TaskDef;
-
-    drop table VariableInstanceLog;
-
-    drop table WorkItemInfo;
-
-    drop table email_header;
-
-    drop table task_comment;
-
     create table Attachment (
-        AttachmentId bigint identity not null,
+        id bigint identity not null,
         accessType int,
         attachedAt datetime2,
         attachmentContentId bigint not null,
@@ -216,11 +8,31 @@
         attachment_size int,
         attachedBy_id varchar(255),
         TaskData_Attachments_Id bigint,
-        primary key (AttachmentId)
+        primary key (id)
+    );
+
+    create table AuditTaskImpl (
+        id bigint identity not null,
+        activationTime date,
+        actualOwner varchar(255),
+        createdBy varchar(255),
+        createdOn date,
+        deploymentId varchar(255),
+        description varchar(255),
+        dueDate date,
+        name varchar(255),
+        parentId bigint not null,
+        priority int not null,
+        processId varchar(255),
+        processInstanceId bigint not null,
+        processSessionId int not null,
+        status varchar(255),
+        taskId bigint,
+        primary key (id)
     );
 
     create table BAMTaskSummary (
-        BAMTaskId bigint identity not null,
+        pk bigint identity not null,
         createdDate datetime2,
         duration bigint,
         endDate datetime2,
@@ -230,7 +42,8 @@
         taskId bigint not null,
         taskName varchar(255),
         userId varchar(255),
-        primary key (BAMTaskId)
+        OPTLOCK int,
+        primary key (pk)
     );
 
     create table BooleanExpression (
@@ -251,6 +64,7 @@
         mappingId bigint identity not null,
         CONTEXT_ID varchar(255) not null,
         KSESSION_ID int not null,
+        OWNER_ID varchar(255),
         OPTLOCK int,
         primary key (mappingId)
     );
@@ -286,6 +100,16 @@
         entity_id varchar(255) not null
     );
 
+    create table DeploymentStore (
+        id bigint identity not null,
+        attributes varchar(255),
+        DEPLOYMENT_ID varchar(255),
+        deploymentUnit varchar(MAX),
+        state int,
+        updateDate datetime2,
+        primary key (id)
+    );
+
     create table ErrorInfo (
         id bigint identity not null,
         message varchar(255),
@@ -304,11 +128,11 @@
 
     create table EventTypes (
         InstanceId bigint not null,
-        eventTypes varchar(255)
+        element varchar(255)
     );
 
     create table I18NText (
-        I18NTextId bigint identity not null,
+        id bigint identity not null,
         language varchar(255),
         shortText varchar(255),
         text varchar(MAX),
@@ -321,7 +145,7 @@
         Notification_Documentation_Id bigint,
         Notification_Descriptions_Id bigint,
         Deadline_Documentation_Id bigint,
-        primary key (I18NTextId)
+        primary key (id)
     );
 
     create table NodeInstanceLog (
@@ -342,10 +166,10 @@
 
     create table Notification (
         DTYPE varchar(31) not null,
-        NotificationId bigint identity not null,
+        id bigint identity not null,
         priority int not null,
         Escalation_Notifications_Id bigint,
-        primary key (NotificationId)
+        primary key (id)
     );
 
     create table Notification_BAs (
@@ -359,10 +183,10 @@
     );
 
     create table Notification_email_header (
-        Notification_NotificationId bigint not null,
+        Notification_id bigint not null,
         emailHeaders_id bigint not null,
         mapkey varchar(255) not null,
-        primary key (Notification_NotificationId, mapkey)
+        primary key (Notification_id, mapkey)
     );
 
     create table OrganizationalEntity (
@@ -417,6 +241,7 @@
         outcome varchar(255),
         parentProcessInstanceId bigint,
         processId varchar(255),
+        processInstanceDescription varchar(255),
         processInstanceId bigint not null,
         processName varchar(255),
         processVersion varchar(255),
@@ -443,6 +268,7 @@
         executions int not null,
         businessKey varchar(255),
         message varchar(255),
+        owner varchar(255),
         requestData varbinary(MAX),
         responseData varbinary(MAX),
         retries int not null,
@@ -461,12 +287,15 @@
     );
 
     create table Task (
-        TaskId bigint identity not null,
+        id bigint identity not null,
         archived smallint,
         allowedToDelegate varchar(255),
+        description varchar(255),
         formName varchar(255),
+        name varchar(255),
         priority int not null,
         subTaskStrategy varchar(255),
+        subject varchar(255),
         activationTime datetime2,
         createdOn datetime2,
         deploymentId varchar(255),
@@ -494,14 +323,26 @@
         taskInitiator_id varchar(255),
         actualOwner_id varchar(255),
         createdBy_id varchar(255),
-        primary key (TaskId)
+        primary key (id)
     );
 
     create table TaskDef (
-        TaskDefId bigint identity not null,
+        id bigint identity not null,
         name varchar(255),
         priority int not null,
-        primary key (TaskDefId)
+        primary key (id)
+    );
+
+    create table TaskEvent (
+        id bigint identity not null,
+        logTime datetime2,
+        processInstanceId bigint,
+        taskId bigint,
+        type varchar(255),
+        userId varchar(255),
+        OPTLOCK int,
+        workItemId bigint,
+        primary key (id)
     );
 
     create table VariableInstanceLog (
@@ -586,6 +427,9 @@
         add constraint FK47485D57786553A5 
         foreign key (task_id) 
         references Task;
+
+    alter table DeploymentStore 
+        add constraint UK_DeploymentStore_1 unique (DEPLOYMENT_ID);
 
     alter table ErrorInfo 
         add constraint FK8B1186B6724A467 
@@ -681,8 +525,8 @@
         references email_header;
 
     alter table Notification_email_header 
-        add constraint FKF30FE344DD2D7416 
-        foreign key (Notification_NotificationId) 
+        add constraint FKF30FE3443E3E97EB 
+        foreign key (Notification_id) 
         references Notification;
 
     alter table PeopleAssignments_BAs 

@@ -176,29 +176,29 @@
     <echo message="Checking Eclipse download ..." />
     <condition property="eclipse.not.available">
       <not>
-        <available file="${install.home}/lib/eclipse-java-juno-SR2-${download.type}.${download.extension}" />
+        <available file="${install.home}/lib/eclipse-java-kepler-SR2-${download.type}.${download.extension}" />
       </not>
     </condition>
   </target>
   <target name="download.eclipse" depends="download.eclipse.check" if="eclipse.not.available">
     <echo message="Getting Eclipse ..." />
     <mkdir dir="${install.home}/lib"/>
-    <get src="http://download.eclipse.org/technology/epp/downloads/release/juno/SR2/eclipse-java-juno-SR2-${download.type}.${download.extension}"
-         dest="${install.home}/lib/eclipse-java-juno-SR2-${download.type}.${download.extension}"  />
+    <get src="http://download.eclipse.org/technology/epp/downloads/release/kepler/SR2/eclipse-java-kepler-SR2-${download.type}.${download.extension}"
+         dest="${install.home}/lib/eclipse-java-kepler-SR2-${download.type}.${download.extension}"  />
   </target>
   <target name="download.eclipse.gef.check">
     <echo message="Checking Eclipse GEF download ..." />
     <condition property="eclipse.gef.not.available">
       <not>
-        <available file="${install.home}/lib/GEF-SDK-3.8.2.zip" />
+        <available file="${install.home}/lib/GEF-SDK-3.9.1.zip" />
       </not>
     </condition>
   </target>
   <target name="download.eclipse.gef" depends="download.eclipse.gef.check" if="eclipse.gef.not.available">
     <echo message="Getting Eclipse GEF ..." />
     <mkdir dir="${install.home}/lib"/>
-    <get src="http://download.eclipse.org/tools/gef/downloads/drops/3.8.2/R201301141834/GEF-SDK-3.8.2.zip"
-         dest="${install.home}/lib/GEF-SDK-3.8.2.zip" />
+    <get src="http://download.eclipse.org/tools/gef/downloads/drops/3.9.1/R201308190730/GEF-SDK-3.9.1.zip"
+         dest="${install.home}/lib/GEF-SDK-3.9.1.zip" />
   </target>
 
   <!-- Download jBPM binaries -->
@@ -252,7 +252,7 @@
     <condition property="jBPM.console.not.available">
       <and>
     	<not>
-          <available file="${install.home}/lib/jbpm-console-${jBPM.version}.war" />
+          <available file="${install.home}/lib/jbpm-console-${jBPM.version}-${jboss.war.type}.war" />
         </not>
       </and>
     </condition>
@@ -260,7 +260,27 @@
   <target name="download.jBPM.console" depends="download.jBPM.console.check" if="jBPM.console.not.available">
     <echo message="Getting jBPM console ..." />
     <mkdir dir="${install.home}/lib"/>
-  	<get src="${jBPM.console.url}" dest="${install.home}/lib/jbpm-console-${jBPM.version}.war"  />
+  	<get src="${jBPM.console.url}" dest="${install.home}/lib/jbpm-console-${jBPM.version}-${jboss.war.type}.war"  />
+  </target>
+  <target name="check.jbpm.console.modules">
+    <condition property="jbpm.console.modules">
+	<equals arg1="${jBPM.console.modules}" arg2="true" />
+    </condition>
+  </target>
+  <target name="download.jBPM.console.modules.check" if="jbpm.console.modules" depends="check.jbpm.console.modules">
+    <echo message="Checking jBPM console modules download ..." />
+    <condition property="jBPM.console.modules.not.available">
+      <and>
+    	<not>
+          <available file="${install.home}/lib/jbpm-console-modules-${jBPM.version}.zip" />
+        </not>
+      </and>
+    </condition>
+  </target>
+  <target name="download.jBPM.console.modules" depends="download.jBPM.console.modules.check" if="jBPM.console.modules.not.available">
+    <echo message="Getting jBPM console modules ..." />
+    <mkdir dir="${install.home}/lib"/>
+  	<get src="${jBPM.console.modules.url}" dest="${install.home}/lib/jbpm-console-modules-${jBPM.version}.zip"  />
   </target>
 
   <!-- ############ INSTALL ############ -->
@@ -274,11 +294,17 @@
     <chmod perm="a+x" file="${jboss.home}/bin/jboss-cli.sh" />
   </target>
 	
-  <!-- Install gwt-console -->
+  <!-- Install jBPM console modules -->
+  <target name="install.jBPM-console-modules.into.jboss" depends="download.jBPM.console.modules" if="jbpm.console.modules">
+    <unzip src="${install.home}/lib/jbpm-console-modules-${jBPM.version}.zip"
+           dest="${jboss.home}"/>
+  </target>
+
+  <!-- Install jBPM console -->
   <target name="install.jBPM-console.into.jboss" depends="download.db.driver,download.jBPM.console">
     <mkdir dir="${install.home}/target"/>
     <mkdir dir="${install.home}/target/jbpm-console-war"/>
-    <unzip src="${install.home}/lib/jbpm-console-${jBPM.version}.war"
+    <unzip src="${install.home}/lib/jbpm-console-${jBPM.version}-${jboss.war.type}.war"
            dest="${install.home}/target/jbpm-console-war"/>
     <copy todir="${install.home}/target/jbpm-console-war/WEB-INF/lib" overwrite="true">
       <fileset dir="${install.home}/db/driver"/>
@@ -294,13 +320,16 @@
   	<!-- install dependencies -->
   	<antcall target="install.dependencies" />
     <zip basedir="${install.home}/target/jbpm-console-war"
-         destfile="${install.home}/target/jbpm-console-${jBPM.version}.war"/>
-    <copy file="${install.home}/target/jbpm-console-${jBPM.version}.war"
+         destfile="${install.home}/target/jbpm-console-${jBPM.version}-${jboss.war.type}.war"/>
+    <copy file="${install.home}/target/jbpm-console-${jBPM.version}-${jboss.war.type}.war"
           tofile="${jboss.server.deploy.dir}/jbpm-console.war"
           overwrite="true" />
     <delete dir="${install.home}/target"/>
     <copy file="${install.home}/standalone-${jboss.server.version}.xml"
           tofile="${jboss.home}/standalone/configuration/standalone.xml"
+          overwrite="true" />
+    <copy file="${install.home}/standalone-full-${jboss.server.version}.xml"
+          tofile="${jboss.home}/standalone/configuration/standalone-full.xml"
           overwrite="true" />
     <!-- authentication configuration -->
     <copy file="${install.home}/auth/users.properties"
@@ -341,17 +370,17 @@
     <antcall target="unzipEclipse" />	
     <antcall target="untarEclipse" />
     <unzip dest="${install.home}" overwrite="true" 
-           src="${install.home}/lib/GEF-SDK-3.8.2.zip" />				         
+           src="${install.home}/lib/GEF-SDK-3.9.1.zip" />				         
   </target>
   
   <target name="unzipEclipse" if="expandTypeZip">
     <unzip dest="${install.home}" overwrite="true" 
-           src="${install.home}/lib/eclipse-java-juno-SR2-${download.type}.zip" />  
+           src="${install.home}/lib/eclipse-java-kepler-SR2-${download.type}.zip" />  
   </target>
 
   <target name="untarEclipse" if="expandTypeTarGz">
-    <gunzip src="${install.home}/lib/eclipse-java-juno-SR2-${download.type}.tar.gz"/>
-    <untar dest="${install.home}" src="${install.home}/lib/eclipse-java-juno-SR2-${download.type}.tar" />
+    <gunzip src="${install.home}/lib/eclipse-java-kepler-SR2-${download.type}.tar.gz"/>
+    <untar dest="${install.home}" src="${install.home}/lib/eclipse-java-kepler-SR2-${download.type}.tar" />
     <chmod perm="a+x" file="${install.home}/eclipse/eclipse" os="Linux"/>
     <chmod perm="a+x" file="${install.home}/eclipse/Eclipse.app/Contents/MacOS/eclipse" os="Mac OS X"/>
   </target>
@@ -384,7 +413,7 @@
       <arg value="-application" />
       <arg value="org.eclipse.equinox.p2.director" />
       <arg value="-repository" />
-      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/juno,http://download.eclipse.org/releases/juno,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
+      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/kepler/1.0.2,http://download.eclipse.org/releases/kepler,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
       <arg value="-destination" />
       <arg value="${eclipse.home}" />
       <arg value="-installIU" />
@@ -397,7 +426,7 @@
       <arg value="-application" />
       <arg value="org.eclipse.equinox.p2.director" />
       <arg value="-repository" />
-      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/juno,http://download.eclipse.org/releases/juno,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
+      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/kepler/1.0.2,http://download.eclipse.org/releases/kepler,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
       <arg value="-destination" />
       <arg value="${eclipse.home}" />
       <arg value="-installIU" />
@@ -410,7 +439,7 @@
       <arg value="-application" />
       <arg value="org.eclipse.equinox.p2.director" />
       <arg value="-repository" />
-      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/juno,http://download.eclipse.org/releases/juno,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
+      <arg value="http://download.eclipse.org/bpmn2-modeler/updates/kepler/1.0.2,http://download.eclipse.org/releases/kepler,http://download.eclipse.org/modeling/mdt/bpmn2/updates/milestones/S20130423" />
       <arg value="-installIU" />
       <arg value="org.eclipse.bpmn2.modeler.feature.feature.group" />
       <arg value="-installIU" />
@@ -419,13 +448,13 @@
   </target>
 
   <!-- Install Demo -->
-  <target name="install.demo" depends="install.jboss,install.db.files,install.jBPM-console.into.jboss,install.dashboard.into.jboss,install.eclipse,install.jBPM.runtime,install.droolsjbpm-eclipse.into.eclipse,install.modeler.into.eclipse" />
+  <target name="install.demo" depends="install.jboss,install.db.files,install.jBPM-console-modules.into.jboss,install.jBPM-console.into.jboss,install.eclipse,install.jBPM.runtime,install.droolsjbpm-eclipse.into.eclipse,install.modeler.into.eclipse" />
 
   <!-- Install Demo (Eclipse) -->
   <target name="install.demo.eclipse" depends="install.eclipse,install.jBPM.runtime,install.droolsjbpm-eclipse.into.eclipse,install.modeler.into.eclipse" />
 
   <!-- Install Demo (No Eclipse) -->
-  <target name="install.demo.noeclipse" depends="install.jboss,install.db.files,install.jBPM-console.into.jboss,install.dashboard.into.jboss,install.jBPM.runtime" />
+  <target name="install.demo.noeclipse" depends="install.jboss,install.db.files,install.jBPM-console-modules.into.jboss,install.jBPM-console.into.jboss" />
   
   <!-- ############ START/STOP ############ -->
   <target name="start.h2.check">
@@ -455,19 +484,32 @@
   <!-- Start JBoss AS -->
   <target name="start.jboss">
     <property name="jboss.full.path.win" location="${jboss.home}/bin/standalone.bat" />
-    <exec executable="${jboss.full.path.win}" spawn="yes"
-          osfamily="windows">
+    <exec executable="${jboss.full.path.win}" spawn="yes" osfamily="windows">
       <env key="JAVA_OPTS" value="-XX:MaxPermSize=256m -Xms256m -Xmx512m" />
       <arg value="-b" />
       <arg value="${jboss.bind.address}" />
-      <arg value="-Dorg.apache.jasper.compiler.Parser.STRICT_QUOTE_ESCAPING=false -Dorg.jbpm.console.demo=true -Dorg.kie.wb.demo=true" />
+      <arg value="--server-config=standalone-full.xml" />
+      <arg value="-Dorg.kie.demo=true" />
+      <arg value="-Dorg.kie.example=false" />
+      <!--arg value="-Dorg.uberfire.nio.git.daemon.port=${org.uberfire.nio.git.daemon.port}" />
+      <arg value="-Dorg.uberfire.nio.git.ssh.port=${org.uberfire.nio.git.ssh.port}" />
+      <arg value="-Djboss.socket.binding.port-offset=${jboss.port.offset}" />
+      <arg value="-Dorg.uberfire.nio.git.dir=${jboss.home}" />
+      <arg value="-Dorg.uberfire.metadata.index.dir=${jboss.home}" /-->
     </exec>
     <property name="jboss.full.path.linux" location="${jboss.home}/bin/standalone.sh" />
     <exec executable="${jboss.full.path.linux}" spawn="yes" osfamily="unix">
       <env key="JAVA_OPTS" value="-XX:MaxPermSize=256m -Xms256m -Xmx512m" />
       <arg value="-b" />
       <arg value="${jboss.bind.address}" />
-      <arg value="-Dorg.apache.jasper.compiler.Parser.STRICT_QUOTE_ESCAPING=false -Dorg.jbpm.console.demo=true -Dorg.kie.wb.demo=true" />
+      <arg value="--server-config=standalone-full.xml" />
+      <arg value="-Dorg.kie.demo=true" />
+      <arg value="-Dorg.kie.example=false" />
+      <!--arg value="-Dorg.uberfire.nio.git.daemon.port=${org.uberfire.nio.git.daemon.port}" />
+      <arg value="-Dorg.uberfire.nio.git.ssh.port=${org.uberfire.nio.git.ssh.port}" />
+      <arg value="-Djboss.socket.binding.port-offset=${jboss.port.offset}" />
+      <arg value="-Dorg.uberfire.nio.git.dir=${jboss.home}" />
+      <arg value="-Dorg.uberfire.metadata.index.dir=${jboss.home}" /-->
     </exec>
     <waitfor maxwait="5" maxwaitunit="minute" checkevery="10"
              checkeveryunit="second" timeoutproperty="jboss.timeout">
@@ -545,8 +587,8 @@
   </target>
 	
   <target name="clean.db" >
-    <delete file="${user.home}/jbpm.h2.db" failonerror="false"/>
-  	<delete file="${user.home}/jbpm.trace.db" failonerror="false"/>
+    <delete file="${user.home}/jbpm-db.h2.db" failonerror="false"/>
+  	<delete file="${user.home}/jbpm-db.trace.db" failonerror="false"/>
   </target>
 
   <target name="check.clean.repository">
@@ -558,7 +600,7 @@
   <target name="clean.jboss.repository" if="clean.repository" depends="check.clean.repository">
   	<delete dir="${install.home}/.niogit"/>
     <delete dir="${install.home}/.index"/>
-    <delete dir="${install.home}/repository"/>
+    <delete dir="${install.home}/repositories"/>
   </target>
 	
   <target name="check.clean.eclipse.workspace">
@@ -639,4 +681,30 @@
 	  </hibernatetool>
 	  <delete dir="db/export-jbpm/META-INF"/>
 	</target>
+
+   <target name="ht.schemaexport" depends="install.jBPM.runtime,download.ddl.dependencies">
+      <delete dir="db/export-ht"/>
+      <!-- task definition; project.class.path contains all necessary libs -->
+      <taskdef name="hibernatetool" classname="org.hibernate.tool.ant.HibernateToolTask"
+          classpathref="generate.ddl.${jpa.version}.class.path" />
+      <mkdir dir="db/export-ht"/>
+      <mkdir dir="db/export-ht/META-INF"/>
+   	  <copy tofile="db/export-ht/META-INF/persistence.xml" file="db/task-persistence-${jpa.version}.xml"/>
+      <copy todir="db/export-ht/META-INF">
+        <fileset dir="db/">
+      	  <include name="Taskorm-${jpa.version}.xml"/>
+        </fileset>
+      </copy>   
+      <hibernatetool destdir="db/export-ht">
+        <jpaconfiguration persistenceunit="org.jbpm.task.ddl" />
+        <classpath>
+            <pathelement path="${runtime.class.path}"/>
+            <dirset dir="db/export-ht/">
+            </dirset>
+        </classpath>
+        <hbm2ddl outputfilename="htschemaexport.sql" format="true"
+            export="false" drop="true" />
+      </hibernatetool>
+      <delete dir="db/export-ht/META-INF"/>
+    </target>
 </project>

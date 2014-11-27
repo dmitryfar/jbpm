@@ -20,9 +20,9 @@ import java.util.Collection;
 
 import org.drools.core.command.impl.GenericCommand;
 import org.drools.core.command.impl.KnowledgeCommandContext;
-import org.jbpm.executor.impl.runtime.RuntimeManagerRegistry;
 import org.jbpm.process.core.context.exception.ExceptionScope;
 import org.jbpm.process.instance.context.exception.ExceptionScopeInstance;
+import org.jbpm.workflow.instance.NodeInstanceContainer;
 import org.jbpm.workflow.instance.WorkflowProcessInstance;
 import org.jbpm.workflow.instance.node.WorkItemNodeInstance;
 import org.kie.api.runtime.KieSession;
@@ -34,6 +34,7 @@ import org.kie.internal.command.Context;
 import org.kie.internal.executor.api.CommandCallback;
 import org.kie.internal.executor.api.CommandContext;
 import org.kie.internal.executor.api.ExecutionResults;
+import org.kie.internal.runtime.manager.RuntimeManagerRegistry;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,7 +107,7 @@ public class AsyncWorkItemHandlerCmdCallback implements CommandCallback {
     
     protected RuntimeManager getRuntimeManager(CommandContext ctx) {
         String deploymentId = (String) ctx.getData("deploymentId");
-        RuntimeManager runtimeManager = RuntimeManagerRegistry.get().getRuntimeManager(deploymentId);
+        RuntimeManager runtimeManager = RuntimeManagerRegistry.get().getManager(deploymentId);
         
         if (runtimeManager == null) {
             throw new IllegalStateException("There is no runtime manager for deployment " + deploymentId);
@@ -118,15 +119,24 @@ public class AsyncWorkItemHandlerCmdCallback implements CommandCallback {
     protected NodeInstance getNodeInstance(WorkItem workItem, WorkflowProcessInstance processInstance) {
         Collection<NodeInstance> nodeInstances = processInstance.getNodeInstances();
         
-        for (NodeInstance nodeInstance : nodeInstances) {
+        return getNodeInstance(workItem, nodeInstances);
+    }
+    
+    protected NodeInstance getNodeInstance(WorkItem workItem, Collection<NodeInstance> nodeInstances) {
+    	for (NodeInstance nodeInstance : nodeInstances) {
             if (nodeInstance instanceof WorkItemNodeInstance) {
                 if (((WorkItemNodeInstance) nodeInstance).getWorkItemId() == workItem.getId()) {
                     return nodeInstance;
                 }
+            } else if (nodeInstance instanceof NodeInstanceContainer) {
+            	NodeInstance found = getNodeInstance(workItem, ((NodeInstanceContainer) nodeInstance).getNodeInstances());
+            	if (found != null) {
+            		return found;
+            	}
             }
         }
-        
-        return null;
+    	
+    	return null;
     }
     
 }

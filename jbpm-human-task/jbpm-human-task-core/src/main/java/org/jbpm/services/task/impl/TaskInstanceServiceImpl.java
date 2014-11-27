@@ -9,41 +9,29 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Event;
-import javax.enterprise.util.AnnotationLiteral;
-import javax.inject.Inject;
-
-import org.drools.core.command.impl.FixedKnowledgeCommandContext;
-import org.drools.core.command.impl.GenericCommand;
-import org.drools.core.command.impl.KnowledgeCommandContext;
-import org.drools.core.command.runtime.BatchExecutionCommandImpl;
-import org.drools.core.runtime.impl.ExecutionResultImpl;
-import org.jboss.seam.transaction.Transactional;
-import org.jbpm.services.task.annotations.Mvel;
 import org.jbpm.services.task.commands.TaskCommand;
 import org.jbpm.services.task.commands.TaskContext;
-import org.jbpm.services.task.events.AfterTaskAddedEvent;
-import org.jbpm.services.task.identity.UserGroupLifeCycleManagerDecorator;
-import org.jbpm.services.task.impl.model.ContentDataImpl;
-import org.jbpm.services.task.impl.model.ContentImpl;
-import org.jbpm.services.task.impl.model.TaskImpl;
+import org.jbpm.services.task.events.TaskEventSupport;
 import org.jbpm.services.task.internals.lifecycle.LifeCycleManager;
-import org.jbpm.services.task.internals.lifecycle.MVELLifeCycleManager;
+import org.jbpm.services.task.utils.ClassUtil;
 import org.jbpm.services.task.utils.ContentMarshallerHelper;
-import org.jbpm.shared.services.api.JbpmServicesPersistenceManager;
 import org.kie.api.command.Command;
-import org.kie.api.runtime.ExecutionResults;
+import org.kie.api.runtime.Environment;
+import org.kie.api.task.model.Content;
 import org.kie.api.task.model.I18NText;
 import org.kie.api.task.model.OrganizationalEntity;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.Task;
 import org.kie.api.task.model.TaskSummary;
-import org.kie.internal.command.Context;
+import org.kie.api.task.model.User;
 import org.kie.internal.task.api.TaskInstanceService;
-import org.kie.internal.task.api.TaskQueryService;
+import org.kie.internal.task.api.TaskModelProvider;
+import org.kie.internal.task.api.TaskPersistenceContext;
 import org.kie.internal.task.api.model.ContentData;
 import org.kie.internal.task.api.model.FaultData;
+import org.kie.internal.task.api.model.InternalContent;
+import org.kie.internal.task.api.model.InternalPeopleAssignments;
+import org.kie.internal.task.api.model.InternalTask;
 import org.kie.internal.task.api.model.InternalTaskData;
 import org.kie.internal.task.api.model.Operation;
 import org.kie.internal.task.api.model.SubTasksStrategy;
@@ -53,229 +41,301 @@ import org.slf4j.LoggerFactory;
 /**
  *
  */
-@Transactional
-@ApplicationScoped
 public class TaskInstanceServiceImpl implements TaskInstanceService {
     
     private static final Logger logger = LoggerFactory.getLogger(TaskInstanceServiceImpl.class);
     
-    @Inject
-    private TaskQueryService taskQueryService;
-    @Inject
-    @Mvel
     private LifeCycleManager lifeCycleManager;
-    @Inject
-    private JbpmServicesPersistenceManager pm;
-    @Inject
-    private Event<Task> taskEvents;
+    
+    private org.kie.internal.task.api.TaskContext context;
+   
+    private TaskPersistenceContext persistenceContext;    
+    private TaskEventSupport taskEventSupport;
+    private Environment environment;
 
     public TaskInstanceServiceImpl() {
     }
 
-    public void setTaskQueryService(TaskQueryService taskQueryService) {
-        this.taskQueryService = taskQueryService;
+    public TaskInstanceServiceImpl(org.kie.internal.task.api.TaskContext context, TaskPersistenceContext persistenceContext,
+    		LifeCycleManager lifeCycleManager, TaskEventSupport taskEventSupport,
+    		Environment environment) {
+    	this.context = context;
+    	this.persistenceContext = persistenceContext;
+    	this.lifeCycleManager = lifeCycleManager;
+    	this.taskEventSupport = taskEventSupport;
+    	this.environment = environment;
     }
 
     public void setLifeCycleManager(LifeCycleManager lifeCycleManager) {
         this.lifeCycleManager = lifeCycleManager;
     }
 
-    public void setTaskEvents(Event<Task> taskEvents) {
-        this.taskEvents = taskEvents;
+    public void setTaskEventSupport(TaskEventSupport taskEventSupport) {
+        this.taskEventSupport = taskEventSupport;
     }
 
     
-    public void setPm(JbpmServicesPersistenceManager pm) {
-        this.pm = pm;
+    public void setPersistenceContext(TaskPersistenceContext persistenceContext) {
+        this.persistenceContext = persistenceContext;
     }
 
    
-    public long addTask(Task task, Map<String, Object> params) {
-         if (params != null) {
-            ContentDataImpl contentData = ContentMarshallerHelper.marshal(params, null);
-            ContentImpl content = new ContentImpl(contentData.getContent());
-            pm.persist(content);
-            ((InternalTaskData) task.getTaskData()).setDocument(content.getId(), contentData);
-        }
-         
-        pm.persist(task);
-        if(taskEvents != null){
-            taskEvents.select(new AnnotationLiteral<AfterTaskAddedEvent>() {}).fire(task);
-        }
-        return task.getId();
+    public long addTask(Task task, Map<String, Object> params) {    	
+    	taskEventSupport.fireBeforeTaskAdded(task, context);
+    	
+    	if (params != null) {
+			ContentData contentData = ContentMarshallerHelper.marshal(params, environment);
+			Content content = TaskModelProvider.getFactory().newContent();
+			((InternalContent) content).setContent(contentData.getContent());
+			persistenceContext.persistContent(content);
+			((InternalTaskData) task.getTaskData()).setDocument(
+					content.getId(), contentData);
+		}
+
+		persistenceContext.persistTask(task);
+		taskEventSupport.fireAfterTaskAdded(task, context);
+		return task.getId();
     }
 
     public long addTask(Task task, ContentData contentData) {
-        pm.persist(task);
-
+    	taskEventSupport.fireBeforeTaskAdded(task, context);   	
         if (contentData != null) {
-            ContentImpl content = new ContentImpl(contentData.getContent());
-            pm.persist(content);
+            Content content = TaskModelProvider.getFactory().newContent();
+            ((InternalContent) content).setContent(contentData.getContent());
+            persistenceContext.persistContent(content);
             ((InternalTaskData) task.getTaskData()).setDocument(content.getId(), contentData);
         }
-        if(taskEvents != null){
-            taskEvents.select(new AnnotationLiteral<AfterTaskAddedEvent>() {}).fire(task);
-        }
+        
+        persistenceContext.persistTask(task);
+        taskEventSupport.fireAfterTaskAdded(task, context);
         return task.getId();
     }
 
     public void activate(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Activate, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Activate, taskId, userId, null, null, toGroups(null));
     }
 
     public void claim(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Claim, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Claim, taskId, userId, null, null, toGroups(null));
     }
 
     public void claim(long taskId, String userId, List<String> groupIds) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	lifeCycleManager.taskOperation(Operation.Claim, taskId, userId, null, null, groupIds);
     }
 
-    public void claimNextAvailable(String userId, String language) {
+    public void claimNextAvailable(String userId) {
         List<Status> status = new ArrayList<Status>();
         status.add(Status.Ready);
-        List<TaskSummary> queryTasks = taskQueryService.getTasksAssignedAsPotentialOwnerByStatus(userId, status, language);
+        List<TaskSummary> queryTasks = persistenceContext.queryWithParametersInTransaction("TasksAssignedAsPotentialOwnerByStatus", 
+                persistenceContext.addParametersToMap("userId", userId, "status", status),
+                ClassUtil.<List<TaskSummary>>castClass(List.class));;
         if (queryTasks.size() > 0) {
-            lifeCycleManager.taskOperation(Operation.Claim, queryTasks.get(0).getId(), userId, null, null, null);
+            lifeCycleManager.taskOperation(Operation.Claim, queryTasks.get(0).getId(), userId, null, null, toGroups(null));
         } else {
-            //log.log(Level.SEVERE, " No Task Available to Assign");
+        	logger.info("No task available to assign for user {}", userId);
         }
     }
 
-    public void claimNextAvailable(String userId, List<String> groupIds, String language) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public void claimNextAvailable(String userId, List<String> groupIds) {
+        List<Status> status = new ArrayList<Status>();
+        status.add(Status.Ready);
+        List<TaskSummary> queryTasks = persistenceContext.queryWithParametersInTransaction("TasksAssignedAsPotentialOwnerByStatusByGroup", 
+                persistenceContext.addParametersToMap("userId", userId, "status", status, "groupIds", groupIds),
+                ClassUtil.<List<TaskSummary>>castClass(List.class));;
+        if (queryTasks.size() > 0) {
+            lifeCycleManager.taskOperation(Operation.Claim, queryTasks.get(0).getId(), userId, null, null, groupIds);
+        } else {
+            logger.info("No task available to assign for user {} and groups {}", userId, groupIds);
+        }
     }
 
     public void complete(long taskId, String userId, Map<String, Object> data) {
-        lifeCycleManager.taskOperation(Operation.Complete, taskId, userId, null, data, null);
+        lifeCycleManager.taskOperation(Operation.Complete, taskId, userId, null, data, toGroups(null));
     }
 
     public void delegate(long taskId, String userId, String targetUserId) {
-        lifeCycleManager.taskOperation(Operation.Delegate, taskId, userId, targetUserId, null, null);
+        lifeCycleManager.taskOperation(Operation.Delegate, taskId, userId, targetUserId, null, toGroups(null));
     }
 
     public void deleteFault(long taskId, String userId) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	Task task = persistenceContext.findTask(taskId);
+    	
+    	long contentId = task.getTaskData().getFaultContentId();
+        Content content = persistenceContext.findContent(contentId);
+        FaultData data = TaskModelProvider.getFactory().newFaultData();
+        persistenceContext.removeContent(content);
+        
+        ((InternalTaskData) task.getTaskData()).setFault(0, data);
     }
 
     public void deleteOutput(long taskId, String userId) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	Task task = persistenceContext.findTask(taskId);
+    	
+    	long contentId = task.getTaskData().getOutputContentId();
+        Content content = persistenceContext.findContent(contentId);
+        ContentData data = TaskModelProvider.getFactory().newContentData();
+        persistenceContext.removeContent(content);
+        
+        ((InternalTaskData) task.getTaskData()).setOutput(0, data);
     }
 
     public void exit(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Exit, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Exit, taskId, userId, null, null, toGroups(null));
     }
 
     public void fail(long taskId, String userId, Map<String, Object> faultData) {
-        lifeCycleManager.taskOperation(Operation.Fail, taskId, userId, null, faultData, null);
+        lifeCycleManager.taskOperation(Operation.Fail, taskId, userId, null, faultData, toGroups(null));
     }
 
     public void forward(long taskId, String userId, String targetEntityId) {
-        lifeCycleManager.taskOperation(Operation.Forward, taskId, userId, targetEntityId, null, null);
+        lifeCycleManager.taskOperation(Operation.Forward, taskId, userId, targetEntityId, null, toGroups(null));
     }
 
     public void release(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Release, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Release, taskId, userId, null, null, toGroups(null));
     }
 
     public void remove(long taskId, String userId) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	Task task = persistenceContext.findTask(taskId);
+    	User user = persistenceContext.findUser(userId);
+    	if (((InternalPeopleAssignments)task.getPeopleAssignments()).getRecipients().contains(user)) {
+    		((InternalPeopleAssignments)task.getPeopleAssignments()).getRecipients().remove(user);
+		} else {
+			throw new RuntimeException("Couldn't remove user " + userId + " since it isn't a notification recipient");
+		}
     }
 
     public void resume(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Resume, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Resume, taskId, userId, null, null, toGroups(null));
     }
 
     public void setFault(long taskId, String userId, FaultData fault) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	Task task = persistenceContext.findTask(taskId);
+    	
+    	Content content = TaskModelProvider.getFactory().newContent();
+		((InternalContent) content).setContent(fault.getContent());
+		persistenceContext.persistContent(content);
+		((InternalTaskData) task.getTaskData()).setFault(content.getId(), fault);
+		
     }
 
     public void setOutput(long taskId, String userId, Object outputContentData) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    	Task task = persistenceContext.findTask(taskId);
+    	
+    	ContentData contentData = ContentMarshallerHelper.marshal(outputContentData, environment);
+		Content content = TaskModelProvider.getFactory().newContent();
+		((InternalContent) content).setContent(contentData.getContent());
+		persistenceContext.persistContent(content);
+		((InternalTaskData) task.getTaskData()).setOutput(content.getId(), contentData);
     }
 
     public void setPriority(long taskId, int priority) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
-        task.setPriority(priority);
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setPriority(priority);
     }
 
     public void setTaskNames(long taskId, List<I18NText> taskNames) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
-        task.setNames(taskNames);
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setNames(taskNames);
+        ((InternalTask) task).setName(taskNames.get(0).getText());
     }
 
     public void skip(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Skip, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Skip, taskId, userId, null, null, toGroups(null));
     }
 
     public void start(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Start, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Start, taskId, userId, null, null, toGroups(null));
     }
 
     public void stop(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Stop, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Stop, taskId, userId, null, null, toGroups(null));
     }
 
     public void suspend(long taskId, String userId) {
-        lifeCycleManager.taskOperation(Operation.Suspend, taskId, userId, null, null, null);
+        lifeCycleManager.taskOperation(Operation.Suspend, taskId, userId, null, null, toGroups(null));
     }
 
-    //@TODO: WHY THE HELL THIS IS NOT AN OPERATION???
-    public void nominate(long taskId, String userId, List<OrganizationalEntity> potentialOwners) {
-        if(lifeCycleManager instanceof UserGroupLifeCycleManagerDecorator){
-            ((MVELLifeCycleManager)((UserGroupLifeCycleManagerDecorator) lifeCycleManager).getManager()).nominate(taskId, userId, potentialOwners);
-        } else if(lifeCycleManager instanceof MVELLifeCycleManager){
-            ((MVELLifeCycleManager)lifeCycleManager).nominate(taskId, userId, potentialOwners);
-        }
-
+    public void nominate(long taskId, String userId, List<OrganizationalEntity> potentialOwners) {      
+        lifeCycleManager.taskOperation(Operation.Nominate, taskId, userId, null, null, toGroups(null), 
+        		potentialOwners.toArray(new OrganizationalEntity[potentialOwners.size()]));
     }
 
     public void setSubTaskStrategy(long taskId, SubTasksStrategy strategy) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
-        task.setSubTaskStrategy(strategy);
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setSubTaskStrategy(strategy);
     }
 
     public void setExpirationDate(long taskId, Date date) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         ((InternalTaskData) task.getTaskData()).setExpirationTime(date);
     }
 
     public void setDescriptions(long taskId, List<I18NText> descriptions) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
-        task.setDescriptions(descriptions);
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setDescriptions(descriptions);
+        ((InternalTask) task).setDescription(descriptions.get(0).getText());
     }
 
     public void setSkipable(long taskId, boolean skipable) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         ((InternalTaskData) task.getTaskData()).setSkipable(skipable);
     }
 
     public int getPriority(long taskId) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         return task.getPriority();
     }
 
     public Date getExpirationDate(long taskId) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         return task.getTaskData().getExpirationTime();
     }
 
     public List<I18NText> getDescriptions(long taskId) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         return (List<I18NText>) task.getDescriptions();
     }
 
     public boolean isSkipable(long taskId) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
+        Task task = persistenceContext.findTask(taskId);
         return task.getTaskData().isSkipable();
     }
 
     public SubTasksStrategy getSubTaskStrategy(long taskId) {
-        TaskImpl task = pm.find(TaskImpl.class, taskId);
-        return task.getSubTaskStrategy();
+        Task task = persistenceContext.findTask(taskId);
+        return ((InternalTask) task).getSubTaskStrategy();
     }
     
-    public <T> T execute(Command<T> command) {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+	public <T> T execute(Command<T> command) {
         return (T) ((TaskCommand) command).execute( new TaskContext() );
+    }
+
+    @Override
+    public void setName(long taskId, String name) {
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setName(name);
+    }
+
+    @Override
+    public void setDescription(long taskId, String description) {
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setDescription(description);
+    }
+
+    @Override
+    public void setSubject(long taskId, String subject) {
+        Task task = persistenceContext.findTask(taskId);
+        ((InternalTask) task).setSubject(subject);
+    }
+    
+    @SuppressWarnings("unchecked")
+	protected List<String> toGroups(List<String> groups) {
+    	if (groups == null) {
+    		return (List<String>) context.get("local:groups");
+    	}
+    	
+    	return groups;
     }
 }

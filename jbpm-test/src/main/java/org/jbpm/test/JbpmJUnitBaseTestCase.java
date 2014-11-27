@@ -1,35 +1,65 @@
+/*
+ * Copyright 2013 JBoss Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.jbpm.test;
+
 
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import javax.naming.InitialContext;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
 import javax.sql.DataSource;
+import javax.transaction.Status;
+import javax.transaction.UserTransaction;
 
 import org.drools.core.audit.WorkingMemoryInMemoryLogger;
 import org.drools.core.audit.event.LogEvent;
 import org.drools.core.audit.event.RuleFlowNodeLogEvent;
-import org.jbpm.process.audit.AuditLogService;
-import org.jbpm.process.audit.JPAAuditLogService;
-import org.jbpm.process.audit.NodeInstanceLog;
+import org.drools.persistence.jta.JtaTransactionManager;
 import org.jbpm.process.instance.event.DefaultSignalManagerFactory;
 import org.jbpm.process.instance.impl.DefaultProcessInstanceManagerFactory;
-import org.jbpm.runtime.manager.impl.RuntimeEnvironmentBuilder;
+import org.jbpm.runtime.manager.impl.DefaultRegisterableItemsFactory;
+import org.jbpm.runtime.manager.impl.SimpleRegisterableItemsFactory;
+import org.jbpm.runtime.manager.impl.jpa.EntityManagerFactoryManager;
 import org.jbpm.services.task.identity.JBossUserGroupCallbackImpl;
 import org.jbpm.workflow.instance.impl.WorkflowProcessInstanceImpl;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.kie.api.definition.process.Node;
+import org.kie.api.event.process.ProcessEventListener;
+import org.kie.api.event.rule.AgendaEventListener;
 import org.kie.api.io.ResourceType;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.Context;
 import org.kie.api.runtime.manager.RuntimeEngine;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
+import org.kie.api.runtime.manager.RuntimeEnvironmentBuilder;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
+import org.kie.api.runtime.manager.audit.AuditService;
+import org.kie.api.runtime.manager.audit.NodeInstanceLog;
 import org.kie.api.runtime.process.NodeInstance;
 import org.kie.api.runtime.process.NodeInstanceContainer;
 import org.kie.api.runtime.process.ProcessInstance;
@@ -37,10 +67,9 @@ import org.kie.api.runtime.process.WorkItem;
 import org.kie.api.runtime.process.WorkItemHandler;
 import org.kie.api.runtime.process.WorkItemManager;
 import org.kie.api.runtime.process.WorkflowProcessInstance;
+import org.kie.api.task.TaskLifeCycleEventListener;
 import org.kie.internal.io.ResourceFactory;
 import org.kie.internal.runtime.StatefulKnowledgeSession;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
 import org.kie.internal.runtime.manager.context.EmptyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +105,7 @@ import bitronix.tm.resource.jdbc.PoolingDataSource;
  * * clearHistory - clears history log<br/>
  * * setupPoolingDataSource - sets up data source<br/>
  */
-public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
+public abstract class JbpmJUnitBaseTestCase extends Assert {
     
     /**
      * Currently supported RuntimeEngine strategies
@@ -89,8 +118,8 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
     
     private static final Logger logger = LoggerFactory.getLogger(JbpmJUnitBaseTestCase.class);
   
-    private boolean setupDataSource = false;
-    private boolean sessionPersistence = false;
+    protected boolean setupDataSource = false;
+    protected boolean sessionPersistence = false;
     private String persistenceUnitName;
     
     private EntityManagerFactory emf;
@@ -99,12 +128,17 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
     private TestWorkItemHandler workItemHandler = new TestWorkItemHandler();
     
     private RuntimeManagerFactory managerFactory = RuntimeManagerFactory.Factory.get();
-    private RuntimeManager manager;
+    protected RuntimeManager manager;
 
-    private AuditLogService logService;
+    private AuditService logService;
     private WorkingMemoryInMemoryLogger inMemoryLogger;    
    
-    private List<RuntimeEngine> activeEngines = new ArrayList<RuntimeEngine>();
+    protected Set<RuntimeEngine> activeEngines = new HashSet<RuntimeEngine>();
+    
+    protected Map<String, WorkItemHandler> customHandlers = new HashMap<String, WorkItemHandler>();
+    protected List<ProcessEventListener> customProcessListeners = new ArrayList<ProcessEventListener>();
+    protected List<AgendaEventListener> customAgendaListeners = new ArrayList<AgendaEventListener>();
+    protected List<TaskLifeCycleEventListener> customTaskListeners = new ArrayList<TaskLifeCycleEventListener>();
 
     /**
      * The most simple test case configuration:
@@ -171,26 +205,31 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
 
     @After
     public void tearDown() throws Exception {
+    	clearCustomRegistry();
+        disposeRuntimeManager();
         clearHistory();
         if (setupDataSource) {
             if (emf != null) {
                 emf.close();
-                emf = null;
+                emf = null;                
+               	EntityManagerFactoryManager.get().clear();
+                
             }
             if (ds != null) {
                 ds.close();
                 ds = null;
             }
-        }
-        if (!activeEngines.isEmpty()) {
-            for (RuntimeEngine engine : activeEngines) {
-                manager.disposeRuntimeEngine(engine);
+            try { 
+                InitialContext context = new InitialContext();
+                UserTransaction ut = (UserTransaction) context.lookup( JtaTransactionManager.DEFAULT_USER_TRANSACTION_NAME );
+                if( ut.getStatus() != Status.STATUS_NO_TRANSACTION ) { 
+                    ut.setRollbackOnly();
+                    ut.rollback();
+                }
+            } catch( Exception e ) { 
+                // do nothing
             }
-        }
-        if (manager != null) {
-            manager.close();
-            manager = null;
-        }
+        }        
     }
 
     /**
@@ -202,7 +241,7 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
      * @return new instance of RuntimeManager
      */
     protected RuntimeManager createRuntimeManager(String... process) {
-        return createRuntimeManager(Strategy.SINGLETON, process);
+        return createRuntimeManager(Strategy.SINGLETON, null, process);
     }
     
     /**
@@ -211,15 +250,16 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
      * <br/>
      * There should be only one <code>RuntimeManager</code> created during single test.
      * @param strategy - selected strategy of those that are supported
+     * @param identifier - identifies the runtime manager
      * @param process - processes that shall be added to knowledge base
      * @return new instance of RuntimeManager
      */
-    protected RuntimeManager createRuntimeManager(Strategy strategy, String... process) {
+    protected RuntimeManager createRuntimeManager(Strategy strategy, String identifier, String... process) {
         Map<String, ResourceType> resources = new HashMap<String, ResourceType>();
         for (String p : process) {
             resources.put(p, ResourceType.BPMN2);
         }
-        return createRuntimeManager(strategy, resources);
+        return createRuntimeManager(strategy, resources, identifier);
     }
 
     /**
@@ -231,7 +271,20 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
      * @return new instance of RuntimeManager
      */
     protected RuntimeManager createRuntimeManager(Map<String, ResourceType> resources) {
-        return createRuntimeManager(Strategy.SINGLETON, resources);
+        return createRuntimeManager(Strategy.SINGLETON, resources, null);
+    }
+
+    /**
+     * Creates default configuration of <code>RuntimeManager</code> with SINGLETON strategy and all 
+     * <code>resources</code> being added to knowledge base.
+     * <br/>
+     * There should be only one <code>RuntimeManager</code> created during single test.
+     * @param resources - resources (processes, rules, etc) that shall be added to knowledge base
+     * @param identifier - identifies the runtime manager
+     * @return new instance of RuntimeManager
+     */
+    protected RuntimeManager createRuntimeManager(Map<String, ResourceType> resources, String identifier) {
+        return createRuntimeManager(Strategy.SINGLETON, resources, identifier);
     }
     
     /**
@@ -244,42 +297,142 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
      * @return new instance of RuntimeManager
      */
     protected RuntimeManager createRuntimeManager(Strategy strategy, Map<String, ResourceType> resources) {
+        return createRuntimeManager(strategy, resources, null);
+    }
+    
+    /**
+     * Creates default configuration of <code>RuntimeManager</code> with given <code>strategy</code> and all 
+     * <code>resources</code> being added to knowledge base.
+     * <br/>
+     * There should be only one <code>RuntimeManager</code> created during single test.
+     * @param strategy - selected strategy of those that are supported
+     * @param resources - resources that shall be added to knowledge base
+     * @param identifier - identifies the runtime manager
+     * @return new instance of RuntimeManager
+     */
+    protected RuntimeManager createRuntimeManager(Strategy strategy, Map<String, ResourceType> resources, String identifier) {
         if (manager != null) {
             throw new IllegalStateException("There is already one RuntimeManager active");
         }
         
         RuntimeEnvironmentBuilder builder = null;
         if (!setupDataSource){
-            builder = RuntimeEnvironmentBuilder.getEmpty()
+            builder = RuntimeEnvironmentBuilder.Factory.get()
+        			.newEmptyBuilder()
             .addConfiguration("drools.processSignalManagerFactory", DefaultSignalManagerFactory.class.getName())
-            .addConfiguration("drools.processInstanceManagerFactory", DefaultProcessInstanceManagerFactory.class.getName());
+            .addConfiguration("drools.processInstanceManagerFactory", DefaultProcessInstanceManagerFactory.class.getName())
+            .registerableItemsFactory(new SimpleRegisterableItemsFactory() {
+
+				@Override
+				public Map<String, WorkItemHandler> getWorkItemHandlers(RuntimeEngine runtime) {
+					Map<String, WorkItemHandler> handlers = new HashMap<String, WorkItemHandler>();
+					handlers.putAll(super.getWorkItemHandlers(runtime));
+					handlers.putAll(customHandlers);
+					return handlers;
+				}
+	
+				@Override
+				public List<ProcessEventListener> getProcessEventListeners(RuntimeEngine runtime) {
+					List<ProcessEventListener> listeners = super.getProcessEventListeners(runtime);
+					listeners.addAll(customProcessListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<AgendaEventListener> getAgendaEventListeners( RuntimeEngine runtime) {
+					List<AgendaEventListener> listeners = super.getAgendaEventListeners(runtime);
+					listeners.addAll(customAgendaListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<TaskLifeCycleEventListener> getTaskListeners() {
+					List<TaskLifeCycleEventListener> listeners = super.getTaskListeners();
+					listeners.addAll(customTaskListeners);
+					return listeners;
+				}
+	        	
+	        });
+            
         } else if (sessionPersistence) {
-            builder = RuntimeEnvironmentBuilder.getDefault()
-            .entityManagerFactory(emf);
+            builder = RuntimeEnvironmentBuilder.Factory.get()
+        			.newDefaultBuilder()
+            .entityManagerFactory(emf)
+            .registerableItemsFactory(new DefaultRegisterableItemsFactory() {
+
+				@Override
+				public Map<String, WorkItemHandler> getWorkItemHandlers(RuntimeEngine runtime) {
+					Map<String, WorkItemHandler> handlers = new HashMap<String, WorkItemHandler>();
+					handlers.putAll(super.getWorkItemHandlers(runtime));
+					handlers.putAll(customHandlers);
+					return handlers;
+				}
+	
+				@Override
+				public List<ProcessEventListener> getProcessEventListeners(RuntimeEngine runtime) {
+					List<ProcessEventListener> listeners = super.getProcessEventListeners(runtime);
+					listeners.addAll(customProcessListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<AgendaEventListener> getAgendaEventListeners( RuntimeEngine runtime) {
+					List<AgendaEventListener> listeners = super.getAgendaEventListeners(runtime);
+					listeners.addAll(customAgendaListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<TaskLifeCycleEventListener> getTaskListeners() {
+					List<TaskLifeCycleEventListener> listeners = super.getTaskListeners();
+					listeners.addAll(customTaskListeners);
+					return listeners;
+				}
+	        	
+	        });
         } else {
-            builder = RuntimeEnvironmentBuilder.getDefaultInMemory();       
+            builder = RuntimeEnvironmentBuilder.Factory.get()
+        			.newDefaultInMemoryBuilder()
+        			.registerableItemsFactory(new DefaultRegisterableItemsFactory() {
+
+				@Override
+				public Map<String, WorkItemHandler> getWorkItemHandlers(RuntimeEngine runtime) {
+					Map<String, WorkItemHandler> handlers = new HashMap<String, WorkItemHandler>();
+					handlers.putAll(super.getWorkItemHandlers(runtime));
+					handlers.putAll(customHandlers);
+					return handlers;
+				}
+	
+				@Override
+				public List<ProcessEventListener> getProcessEventListeners(RuntimeEngine runtime) {
+					List<ProcessEventListener> listeners = super.getProcessEventListeners(runtime);
+					listeners.addAll(customProcessListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<AgendaEventListener> getAgendaEventListeners( RuntimeEngine runtime) {
+					List<AgendaEventListener> listeners = super.getAgendaEventListeners(runtime);
+					listeners.addAll(customAgendaListeners);
+					return listeners;
+				}
+	
+				@Override
+				public List<TaskLifeCycleEventListener> getTaskListeners() {
+					List<TaskLifeCycleEventListener> listeners = super.getTaskListeners();
+					listeners.addAll(customTaskListeners);
+					return listeners;
+				}
+	        	
+	        });       
         }
         builder.userGroupCallback(new JBossUserGroupCallbackImpl("classpath:/usergroups.properties"));
         
         for (Map.Entry<String, ResourceType> entry : resources.entrySet()) {            
             builder.addAsset(ResourceFactory.newClassPathResource(entry.getKey()), entry.getValue());
         }
-        switch (strategy) {
-        case SINGLETON:
-            manager = managerFactory.newSingletonRuntimeManager(builder.get());
-            break;
-        case REQUEST:
-            manager = managerFactory.newPerRequestRuntimeManager(builder.get());     
-            break;
-        case PROCESS_INSTANCE:
-            manager = managerFactory.newPerProcessInstanceRuntimeManager(builder.get());
-            break;
-        default:
-            manager = managerFactory.newSingletonRuntimeManager(builder.get());
-            break;
-        }
-         
-        return manager;
+        
+        return createRuntimeManager(strategy, resources, builder.get(), identifier);
     }
     
     /**
@@ -290,25 +443,42 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
      * @param strategy - selected strategy of those that are supported
      * @param resources - resources that shall be added to knowledge base 
      * @param environment - runtime environment used for <code>RuntimeManager</code> creation
+     * @param identifier - identifies the runtime manager
      * @return new instance of RuntimeManager
      */
-    protected RuntimeManager createRuntimeManager(Strategy strategy, Map<String, ResourceType> resources, RuntimeEnvironment environment) {
+    protected RuntimeManager createRuntimeManager(Strategy strategy, Map<String, ResourceType> resources, RuntimeEnvironment environment, String identifier) {
         if (manager != null) {
             throw new IllegalStateException("There is already one RuntimeManager active");
         }
 
         switch (strategy) {
         case SINGLETON:
-            manager = managerFactory.newSingletonRuntimeManager(environment);
+            if (identifier == null) {
+                manager = managerFactory.newSingletonRuntimeManager(environment);
+            } else {
+                manager = managerFactory.newSingletonRuntimeManager(environment, identifier);
+            }
             break;
         case REQUEST:
-            manager = managerFactory.newPerRequestRuntimeManager(environment);     
+            if (identifier == null) {
+                manager = managerFactory.newPerRequestRuntimeManager(environment);   
+            } else {  
+                manager = managerFactory.newPerRequestRuntimeManager(environment, identifier);
+            }
             break;
         case PROCESS_INSTANCE:
-            manager = managerFactory.newPerProcessInstanceRuntimeManager(environment);
+            if (identifier == null) {
+                manager = managerFactory.newPerProcessInstanceRuntimeManager(environment);
+            } else {
+                manager = managerFactory.newPerProcessInstanceRuntimeManager(environment, identifier);
+            }
             break;
         default:
-            manager = managerFactory.newSingletonRuntimeManager(environment);
+            if (identifier == null) {
+                manager = managerFactory.newSingletonRuntimeManager(environment);
+            } else {
+                manager = managerFactory.newSingletonRuntimeManager(environment, identifier);
+            }
             break;
         }
          
@@ -323,7 +493,11 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
     protected void disposeRuntimeManager() {
         if (!activeEngines.isEmpty()) {
             for (RuntimeEngine engine : activeEngines) {
-                manager.disposeRuntimeEngine(engine);
+            	try {
+            		manager.disposeRuntimeEngine(engine);
+            	} catch (Exception e) {
+            		logger.debug("Exception during dipose of runtime engine, might be already disposed - {}", e.getMessage());
+            	}
             }
             activeEngines.clear();
         }
@@ -361,7 +535,7 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
         RuntimeEngine runtimeEngine = manager.getRuntimeEngine(context);
         activeEngines.add(runtimeEngine);
         if (sessionPersistence) {            
-            logService = new JPAAuditLogService(runtimeEngine.getKieSession().getEnvironment());               
+            logService = runtimeEngine.getAuditService();               
             
         } else {            
             inMemoryLogger = new WorkingMemoryInMemoryLogger((StatefulKnowledgeSession) runtimeEngine.getKieSession());
@@ -435,7 +609,7 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
             names.add(nodeName);
         }
         if (sessionPersistence) {
-            List<NodeInstanceLog> logs = logService.findNodeInstances(processInstanceId);
+            List<? extends NodeInstanceLog> logs = logService.findNodeInstances(processInstanceId);
             if (logs != null) {
                 for (NodeInstanceLog l : logs) {
                     String nodeName = l.getNodeName();
@@ -579,22 +753,58 @@ public abstract class JbpmJUnitBaseTestCase extends AbstractBaseTest {
         pds.setAllowLocalTransactions(true);
         pds.getDriverProperties().put("user", "sa");
         pds.getDriverProperties().put("password", "");
-        pds.getDriverProperties().put("url", "jdbc:h2:inmemory:jbpm-db;MVCC=true");
+        pds.getDriverProperties().put("url", "jdbc:h2:mem:jbpm-db;MVCC=true");
         pds.getDriverProperties().put("driverClassName", "org.h2.Driver");
         pds.init();
         return pds;
     }
     
     protected void clearHistory() {
-        if (sessionPersistence) {
-            logService.clear();
-        } else {
+        if (sessionPersistence && logService != null) {
+        	RuntimeManager manager = createRuntimeManager();
+        	RuntimeEngine engine = manager.getRuntimeEngine(null);
+        	engine.getAuditService().clear();
+        	manager.disposeRuntimeEngine(engine);
+        	manager.close();
+        } else if (inMemoryLogger != null) {
             inMemoryLogger.clear();
         }
     }
     
+    protected void clearCustomRegistry() {
+    	this.customAgendaListeners.clear();
+    	this.customHandlers.clear();
+    	this.customProcessListeners.clear();
+    	this.customTaskListeners.clear();
+    }
+    
+    
     protected TestWorkItemHandler getTestWorkItemHandler() {
         return workItemHandler;
+    }
+    
+    protected AuditService getLogService() {
+        return logService;
+    }
+    
+    protected WorkingMemoryInMemoryLogger getInMemoryLogger() {
+        return inMemoryLogger;
+    }
+    
+    public void addProcessEventListener(ProcessEventListener listener) {
+    	customProcessListeners.add(listener);
+    }
+    
+    public void addAgendaEventListener(AgendaEventListener listener) {
+    	customAgendaListeners.add(listener);
+    }
+    
+    public void addTaskEventListener(TaskLifeCycleEventListener listener) {
+    	customTaskListeners.add(listener);
+    }
+    
+    public void addWorkItemHandler(String name, WorkItemHandler handler) {
+    	customHandlers.put(name, handler);
     }
 
     protected static class TestWorkItemHandler implements WorkItemHandler {

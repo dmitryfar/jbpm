@@ -16,47 +16,75 @@
 package org.jbpm.services.task.commands;
 
 import java.util.List;
+
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlSchemaType;
+
 import org.drools.core.command.impl.GenericCommand;
 
 /**
  *
  */
+@XmlAccessorType(XmlAccessType.FIELD)
 public abstract class TaskCommand<T> implements GenericCommand<T> {
 
-    protected long taskId;
+	private static final long serialVersionUID = -8814813191723981179L;
+	
+	public static final int FAULT_PROPERTY = 1;
+	public static final int OUTPUT_PROPERTY = 2;
+	public static final int PRIORITY_PROPERTY = 3;
+	public static final int TASK_NAMES_PROPERTY = 4;
+	public static final int EXPIRATION_DATE_PROPERTY = 5;
+	public static final int DESCRIPTION_PROPERTY = 6;
+	public static final int SKIPPABLE_PROPERTY = 7;
+	public static final int SUB_TASK_STRATEGY_PROPERTY = 8;
+
+	@XmlElement(name="task-id")
+    @XmlSchemaType(name="long")
+    protected Long taskId;
+    
+    @XmlElement(name="user-id")
+    @XmlSchemaType(name="string")
     protected String userId;
-    protected List<String> groupsIds;
+    
+    @XmlElement(name="group-id")
+    protected List<String> groupIds;
+    
+    @XmlElement(name="target-entity-id")
+    @XmlSchemaType(name="string")
     protected String targetEntityId;
 
-    public long getTaskId() {
+    public Long getTaskId() {
         return this.taskId;
     }
 
-    public void setTaskId(long taskId) {
+    public final void setTaskId(Long taskId) {
         this.taskId = taskId;
     }
 
-    public String getUserId() {
+    public final String getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public final void setUserId(String userId) {
         this.userId = userId;
     }
 
-    public List<String> getGroupsIds() {
-        return this.groupsIds;
+    public final List<String> getGroupsIds() {
+        return this.groupIds;
     }
 
-    public void setGroupsIds(List<String> groupsIds) {
-        this.groupsIds = groupsIds;
+    public final void setGroupsIds(List<String> groupsIds) {
+        this.groupIds = groupsIds;
     }
 
-    public String getTargetEntityId() {
+    public final String getTargetEntityId() {
         return this.targetEntityId;
     }
 
-    public void setTargetEntityId(String targetEntityId) {
+    public final void setTargetEntityId(String targetEntityId) {
         this.targetEntityId = targetEntityId;
     }
 }

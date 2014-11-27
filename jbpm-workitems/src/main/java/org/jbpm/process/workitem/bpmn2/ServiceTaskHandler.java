@@ -31,16 +31,20 @@ import org.apache.cxf.endpoint.ClientCallback;
 import org.apache.cxf.jaxws.endpoint.dynamic.JaxWsDynamicClientFactory;
 import org.drools.core.process.instance.impl.WorkItemImpl;
 import org.jbpm.bpmn2.core.Bpmn2Import;
-import org.jbpm.bpmn2.handler.WorkItemHandlerRuntimeException;
+import org.jbpm.process.workitem.AbstractLogOrThrowWorkItemHandler;
 import org.jbpm.workflow.core.impl.WorkflowProcessImpl;
 import org.kie.api.runtime.KieSession;
+import org.kie.api.runtime.manager.RuntimeEngine;
+import org.kie.api.runtime.manager.RuntimeManager;
 import org.kie.api.runtime.process.WorkItem;
-import org.kie.api.runtime.process.WorkItemHandler;
 import org.kie.api.runtime.process.WorkItemManager;
+import org.kie.internal.runtime.Cacheable;
+import org.kie.internal.runtime.manager.RuntimeManagerRegistry;
+import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ServiceTaskHandler implements WorkItemHandler {
+public class ServiceTaskHandler extends AbstractLogOrThrowWorkItemHandler implements Cacheable {
     
     public static final String WSDL_IMPORT_TYPE = "http://schemas.xmlsoap.org/wsdl/";
     
@@ -61,13 +65,11 @@ public class ServiceTaskHandler implements WorkItemHandler {
     
     public ServiceTaskHandler() {
         this.dcf = JaxWsDynamicClientFactory.newInstance();
-        this.classLoader = this.getClass().getClassLoader();
     }
     
     public ServiceTaskHandler(KieSession ksession) {
         this.dcf = JaxWsDynamicClientFactory.newInstance();
         this.ksession = ksession;
-        this.classLoader = this.getClass().getClassLoader();
     }
     
     public ServiceTaskHandler(KieSession ksession, ClassLoader classloader) {
@@ -80,12 +82,14 @@ public class ServiceTaskHandler implements WorkItemHandler {
         this.dcf = JaxWsDynamicClientFactory.newInstance();
         this.ksession = ksession;
         this.asyncTimeout = timeout;
-        this.classLoader = this.getClass().getClassLoader();
     }
 
     public void executeWorkItem(WorkItem workItem, final WorkItemManager manager) {
         String implementation = (String) workItem.getParameter("implementation");
         if ("##WebService".equalsIgnoreCase(implementation)) {
+            // since JaxWsDynamicClientFactory will change the TCCL we need to restore it after creating client
+            ClassLoader origClassloader = Thread.currentThread().getContextClassLoader();
+            
             String interfaceRef = (String) workItem.getParameter("interfaceImplementationRef");
             String operationRef = (String) workItem.getParameter("operationImplementationRef");
             Object parameter = workItem.getParameter("Parameter");
@@ -113,6 +117,9 @@ public class ServiceTaskHandler implements WorkItemHandler {
                 case ASYNC:
                     final ClientCallback callback = new ClientCallback();
                     final long workItemId = workItem.getId();
+                    final String deploymentId = nonNull(((WorkItemImpl)workItem).getDeploymentId());
+                    final long processInstanceId = workItem.getProcessInstanceId();
+                    
                     client.invoke(callback, operationRef, parameter);
                     new Thread(new Runnable() {
                        
@@ -129,7 +136,18 @@ public class ServiceTaskHandler implements WorkItemHandler {
                                      output.put("Result", result[0]);
                                    }
                                }
-                               ksession.getWorkItemManager().completeWorkItem(workItemId, output);
+                               RuntimeManager manager = RuntimeManagerRegistry.get().getManager(deploymentId);
+                               if (manager != null) {
+	                               RuntimeEngine engine = manager.getRuntimeEngine(ProcessInstanceIdContext.get(processInstanceId));
+	                               
+	                               engine.getKieSession().getWorkItemManager().completeWorkItem(workItemId, output);
+	                               
+	                               manager.disposeRuntimeEngine(engine);
+                               } else {
+                            	   // in case there is no RuntimeManager available use available ksession, 
+                            	   // as it might be used without runtime manager at all
+                            	   ksession.getWorkItemManager().completeWorkItem(workItemId, output);
+                               }
                            } catch (Exception e) {
                               logger.error("Error encountered while invoking ws operation asynchronously ", e);
                            }
@@ -150,7 +168,9 @@ public class ServiceTaskHandler implements WorkItemHandler {
 
              } catch (Exception e) {
                  handleException(e, interfaceRef, operationRef, parameter.getClass().getName(), parameter);
-             }
+             } finally {
+         		Thread.currentThread().setContextClassLoader(origClassloader);
+         	}
         } else {
             executeJavaWorkItem(workItem, manager);
         }
@@ -163,7 +183,7 @@ public class ServiceTaskHandler implements WorkItemHandler {
         if (clients.containsKey(interfaceRef)) {
             return clients.get(interfaceRef);
         }
-        
+
         long processInstanceId = ((WorkItemImpl) workItem).getProcessInstanceId();
         WorkflowProcessImpl process = ((WorkflowProcessImpl) ksession.getProcessInstance(processInstanceId).getProcess());
         List<Bpmn2Import> typedImports = (List<Bpmn2Import>)process.getMetaData("Bpmn2Imports");
@@ -177,11 +197,12 @@ public class ServiceTaskHandler implements WorkItemHandler {
                 if (WSDL_IMPORT_TYPE.equalsIgnoreCase(importObj.getType())) {
                 
                     try {
-                        client = dcf.createClient(importObj.getLocation(), new QName(importObj.getNamespace(), interfaceRef), classLoader, null);
+                        client = dcf.createClient(importObj.getLocation(), new QName(importObj.getNamespace(), interfaceRef), getInternalClassLoader(), null);
                         clients.put(interfaceRef, client);
                         
                         return client;
                     } catch (Exception e) {
+                	    logger.error("Error when creating WS Client", e);
                         continue;
                     }
                 }
@@ -192,19 +213,27 @@ public class ServiceTaskHandler implements WorkItemHandler {
 
     }
 
-    public void executeJavaWorkItem(WorkItem workItem, WorkItemManager manager) {
+    private ClassLoader getInternalClassLoader() {
+		if (this.classLoader != null) {
+			return this.classLoader;
+		}
+		
+		return Thread.currentThread().getContextClassLoader();
+	}
+
+	public void executeJavaWorkItem(WorkItem workItem, WorkItemManager manager) {
         String i = (String) workItem.getParameter("Interface");
         String operation = (String) workItem.getParameter("Operation");
         String parameterType = (String) workItem.getParameter("ParameterType");
         Object parameter = workItem.getParameter("Parameter");
         try {
-            Class<?> c = Class.forName(i, true, classLoader);
+            Class<?> c = Class.forName(i, true, getInternalClassLoader());
             Object instance = c.newInstance();
             Class<?>[] classes = null;
             Object[] params = null;
             if (parameterType != null) {
                 classes = new Class<?>[] {
-                    Class.forName(parameterType, true, classLoader)
+                    Class.forName(parameterType, true, getInternalClassLoader())
                 };
                 params = new Object[] {
                     parameter
@@ -231,21 +260,14 @@ public class ServiceTaskHandler implements WorkItemHandler {
     private void handleException(Throwable cause, String service, String operation, String paramType, Object param) { 
         logger.debug("Handling exception {} inside service {} and operation {} with param type {} and value {}",
                 cause.getMessage(), service, operation, paramType, param);
-        WorkItemHandlerRuntimeException wihRe;
-        if( cause instanceof InvocationTargetException ) { 
-            Throwable realCause = cause.getCause();
-            wihRe = new WorkItemHandlerRuntimeException(realCause);
-            wihRe.setStackTrace(realCause.getStackTrace());
-        } else { 
-            wihRe = new WorkItemHandlerRuntimeException(cause);
-            wihRe.setStackTrace(cause.getStackTrace());
-        }
-        wihRe.setInformation("Interface", service);
-        wihRe.setInformation("Operation", operation);
-        wihRe.setInformation("ParameterType", paramType);
-        wihRe.setInformation("Parameter", param);
-        wihRe.setInformation(WorkItemHandlerRuntimeException.WORKITEMHANDLERTYPE, this.getClass().getSimpleName());
-        throw wihRe;
+        Map<String, Object> data = new HashMap<String, Object>();
+
+        data.put("Interface", service);
+        data.put("Operation", operation);
+        data.put("ParameterType", paramType);
+        data.put("Parameter", param);
+        
+        handleException(cause, data);
         
     }
 
@@ -259,5 +281,22 @@ public class ServiceTaskHandler implements WorkItemHandler {
 
 	public void setClassLoader(ClassLoader classLoader) {
 		this.classLoader = classLoader;
+	}
+	
+	protected String nonNull(String value) {
+		if (value == null) {
+			return "";
+		}
+		
+		return value;
+	}
+
+	@Override
+	public void close() {
+		if (clients != null) {
+			for (Client client : clients.values()) {
+				client.destroy();
+			}
+		}
 	}
 }

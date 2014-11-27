@@ -257,6 +257,17 @@ public class FlowTest extends JbpmBpmn2TestCase {
         assertProcessInstanceCompleted(processInstance);
 
     }
+    
+    @Test
+    public void testInclusiveSplitDefaultConnection() throws Exception {
+        KieBase kbase = createKnowledgeBaseWithoutDumper("BPMN2-InclusiveGatewayWithDefault.bpmn2");
+        ksession = createKnowledgeSession(kbase);
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("test", "c");
+        ProcessInstance processInstance = ksession.startProcess("InclusiveGatewayWithDefault", params);
+        assertProcessInstanceCompleted(processInstance);
+
+    }
 
     @Test
     public void testInclusiveSplitAndJoin() throws Exception {
@@ -1022,6 +1033,78 @@ public class FlowTest extends JbpmBpmn2TestCase {
         }
 
     }
+    
+    @Test
+    public void testInclusiveJoinWithLoopAndHumanTasks() throws Exception {
+        KieBase kbase = createKnowledgeBase("BPMN2-InclusiveGatewayWithHumanTasksProcess.bpmn2");
+        ksession = createKnowledgeSession(kbase);
+        final Map<String, Integer> nodeInstanceExecutionCounter = new HashMap<String, Integer>(); 
+        ksession.addEventListener(new DefaultProcessEventListener(){
+
+            @Override
+            public void beforeNodeTriggered(ProcessNodeTriggeredEvent event) {                 
+                logger.info("{} {}", event.getNodeInstance().getNodeName(), ((NodeInstanceImpl) event.getNodeInstance()).getLevel());
+                Integer value = nodeInstanceExecutionCounter.get(event.getNodeInstance().getNodeName());
+                if (value == null) {
+                    value = new Integer(0);
+                }
+                
+                value++;
+                nodeInstanceExecutionCounter.put(event.getNodeInstance().getNodeName(), value);
+            }
+
+            
+        });
+        TestWorkItemHandler handler = new TestWorkItemHandler();
+        ksession.getWorkItemManager().registerWorkItemHandler("Human Task", handler);
+        
+        Map<String, Object> params = new HashMap<String, Object>();
+        params.put("firstXor", true);   
+        params.put("secondXor", true); 
+        params.put("thirdXor", true);
+        ProcessInstance processInstance = ksession.startProcess("InclusiveWithAdvancedLoop", params);
+        // simulate completion of first task
+        assertProcessInstanceActive(processInstance);
+        ksession.getWorkItemManager().completeWorkItem(handler.getWorkItem().getId(), null);
+        
+        assertProcessInstanceActive(processInstance);
+        List<WorkItem> workItems = handler.getWorkItems();
+        assertNotNull(workItems);
+        assertEquals(2, workItems.size());
+        
+        WorkItem remainingWork = null;
+        for (WorkItem wi : workItems) {
+            assertProcessInstanceActive(processInstance);
+            // complete second task that will trigger converging OR gateway
+            if(wi.getParameter("NodeName").equals("HT Form2")) {
+            	ksession.getWorkItemManager().completeWorkItem(wi.getId(), null);
+            } else {
+            	remainingWork = wi;
+            }
+        }
+        
+        assertProcessInstanceActive(processInstance);
+        ksession.getWorkItemManager().completeWorkItem(remainingWork.getId(), null);
+        
+        assertProcessInstanceActive(processInstance);
+        ksession.getWorkItemManager().completeWorkItem(handler.getWorkItem().getId(), null);
+        
+        assertProcessInstanceCompleted(processInstance);
+        assertEquals(13, nodeInstanceExecutionCounter.size());
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("Start"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("HT Form1"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("and1"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("HT Form2"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("xor1"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("xor2"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("HT Form3"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("Koniec"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("xor 3"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("HT Form4"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("xor4"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("Koniec2"));
+        assertEquals(1, (int)nodeInstanceExecutionCounter.get("or1"));
+    }
 
     @Test
     public void testMultiInstanceLoopCharacteristicsProcess() throws Exception {
@@ -1102,6 +1185,28 @@ public class FlowTest extends JbpmBpmn2TestCase {
         assertEquals(2, myListOut.size());
 
     }
+    
+    @Test
+    public void testMultiInstanceLoopCharacteristicsProcessWithOutputAndScripts()
+            throws Exception {
+        KieBase kbase = createKnowledgeBaseWithoutDumper("BPMN2-MultiInstanceLoopCharacteristicsProcessWithOutputAndScripts.bpmn2");
+        ksession = createKnowledgeSession(kbase);
+        Map<String, Object> params = new HashMap<String, Object>();
+        List<String> myList = new ArrayList<String>();
+        List<String> myListOut = new ArrayList<String>();
+        List<String> scriptList = new ArrayList<String>();
+        myList.add("First Item");
+        myList.add("Second Item");
+        params.put("list", myList);
+        params.put("listOut", myListOut);
+        params.put("scriptList", scriptList);
+        assertEquals(0, myListOut.size());
+        ProcessInstance processInstance = ksession.startProcess("MultiInstanceLoopCharacteristicsProcessWithOutput", params);
+        assertProcessInstanceCompleted(processInstance);
+        assertEquals(2, myListOut.size());
+        assertEquals(2, scriptList.size());
+
+    }
 
     @Test
     public void testMultiInstanceLoopCharacteristicsTaskWithOutput()
@@ -1157,7 +1262,7 @@ public class FlowTest extends JbpmBpmn2TestCase {
 
         assertEquals(0, list.size());
 
-        ksession.fireAllRules();
+        
         Thread.sleep(1500);
 
         assertEquals(1, list.size());
@@ -1256,7 +1361,7 @@ public class FlowTest extends JbpmBpmn2TestCase {
                 workItemHandler);
         workItem = workItemHandler.getWorkItem();
         assertNotNull(workItem);
-        assertEquals("mary", workItem.getParameter("ActorId"));
+        assertEquals("mary", workItem.getParameter("SwimlaneActorId"));
         ksession.getWorkItemManager().completeWorkItem(workItem.getId(), null);
         assertProcessInstanceFinished(processInstance, ksession);
     }
@@ -1299,6 +1404,45 @@ public class FlowTest extends JbpmBpmn2TestCase {
         ProcessInstance processInstance = ksession.startProcess("multiplegateways", params);
         
         assertProcessInstanceCompleted(processInstance);
+    }
+    
+    @Test
+    public void testTimerAndGateway() throws Exception {
+        
+        KieBase kbase = createKnowledgeBase("timer/BPMN2-ParallelSplitWithTimerProcess.bpmn2");
+        ksession = createKnowledgeSession(kbase);
+        
+        TestWorkItemHandler handler1 = new TestWorkItemHandler();
+        TestWorkItemHandler handler2 = new TestWorkItemHandler();
+        
+        ksession.getWorkItemManager().registerWorkItemHandler("task1", handler1);
+        ksession.getWorkItemManager().registerWorkItemHandler("task2", handler2);
+
+        ProcessInstance instance = ksession.createProcessInstance("timer-process", new HashMap<String, Object>());
+        ksession.startProcessInstance(instance.getId());
+
+        WorkItem workItem1 = handler1.getWorkItem();
+        assertNotNull(workItem1);
+        assertNull(handler1.getWorkItem());
+        //first safe state: task1 completed
+        ksession.getWorkItemManager().completeWorkItem(workItem1.getId(), null);        
+        
+        ksession = restoreSession(ksession, true);
+        ksession.getWorkItemManager().registerWorkItemHandler("task1", handler1);
+        ksession.getWorkItemManager().registerWorkItemHandler("task2", handler2);
+        //second safe state: timer completed, waiting on task2
+        Thread.sleep(3000);
+
+        WorkItem workItem2 = handler2.getWorkItem();
+                //Both sides of the join are completed. But on the process instance, there are two
+                //JoinInstance for the same Join, and since it is an AND join, it never reaches task2
+                //It fails after the next assertion
+        assertNotNull(workItem2);
+        assertNull(handler2.getWorkItem());
+        
+        ksession.getWorkItemManager().completeWorkItem(workItem2.getId(), null);
+        
+        assertProcessInstanceCompleted(instance);
     }
 
     private static class GetProcessVariableCommand implements GenericCommand<Object> {

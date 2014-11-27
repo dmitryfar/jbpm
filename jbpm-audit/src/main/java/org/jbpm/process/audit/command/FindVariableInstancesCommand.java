@@ -23,23 +23,23 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 
-import org.jbpm.process.audit.JPAAuditLogService;
+import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.VariableInstanceLog;
 import org.kie.internal.command.Context;
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-public class FindVariableInstancesCommand extends AbstractHistoryLogCommand<List<VariableInstanceLog>> {
+public class FindVariableInstancesCommand extends AuditCommand<List<VariableInstanceLog>> {
 
     /** generated serial version UID */
     private static final long serialVersionUID = 7087452375594067164L;
 
-    @XmlAttribute(required=true)
+    @XmlAttribute(required=true, name="process-instance-id")
     @XmlSchemaType(name="long")
     private Long processInstanceId;
     
     @XmlAttribute(required=true)
-    @XmlSchemaType(name="String")
+    @XmlSchemaType(name="string")
     private String variableId;
     
     public FindVariableInstancesCommand() { 
@@ -68,11 +68,27 @@ public class FindVariableInstancesCommand extends AbstractHistoryLogCommand<List
         }
     }
     
+    public Long getProcessInstanceId() {
+        return processInstanceId;
+    }
+
+    public void setProcessInstanceId(Long processInstanceId) {
+        this.processInstanceId = processInstanceId;
+    }
+
+    public String getVariableId() {
+        return variableId;
+    }
+
+    public void setVariableId(String variableId) {
+        this.variableId = variableId;
+    }
+
     public String toString() {
         if( variableId == null || variableId.isEmpty() ) { 
-            return JPAAuditLogService.class.getSimpleName() + ".findNodeInstances("+ processInstanceId + ")";
+            return AuditLogService.class.getSimpleName() + ".findVariableInstances("+ processInstanceId + ")";
         } else { 
-            return JPAAuditLogService.class.getSimpleName() + ".findNodeInstances("+ processInstanceId + ", " + variableId + ")";
+            return AuditLogService.class.getSimpleName() + ".findVariableInstances("+ processInstanceId + ", " + variableId + ")";
         }
     }
 }

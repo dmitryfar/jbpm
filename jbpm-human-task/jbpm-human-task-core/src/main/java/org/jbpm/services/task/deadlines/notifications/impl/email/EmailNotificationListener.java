@@ -22,16 +22,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.activation.DataHandler;
 import javax.activation.MimetypesFileTypeMap;
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
 import javax.mail.Message;
 import javax.mail.Multipart;
 import javax.mail.Session;
@@ -43,55 +41,36 @@ import javax.mail.internet.MimeMultipart;
 import javax.mail.util.ByteArrayDataSource;
 
 import org.jbpm.services.task.deadlines.NotificationListener;
-import org.jbpm.services.task.impl.model.GroupImpl;
-import org.jbpm.services.task.impl.model.LanguageImpl;
-import org.jbpm.services.task.impl.model.UserImpl;
 import org.kie.api.task.model.Group;
 import org.kie.api.task.model.OrganizationalEntity;
 import org.kie.api.task.model.Task;
 import org.kie.api.task.model.User;
-import org.kie.commons.services.cdi.Startup;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.UserInfo;
 import org.kie.internal.task.api.model.EmailNotification;
 import org.kie.internal.task.api.model.EmailNotificationHeader;
+import org.kie.internal.task.api.model.InternalOrganizationalEntity;
 import org.kie.internal.task.api.model.Language;
 import org.kie.internal.task.api.model.NotificationEvent;
 import org.mvel2.templates.TemplateRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@ApplicationScoped
-@Startup
 public class EmailNotificationListener implements NotificationListener {
     
     private static final Logger logger = LoggerFactory.getLogger(EmailNotificationListener.class);
 
-    @Inject
-    private UserInfo userInfoInstance;
+    private UserInfo userInfo;
+
+    private Session mailSession = EmailSessionProducer.produceSession();
     
-    @Inject
-    private Instance<Session> mailSessionInstance;
-    
-    protected UserInfo getUserInfo() {        
-        try {
-            return userInfoInstance;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-    
-    protected Session getSession() {  
-        try {
-        return mailSessionInstance.get();
-        } catch (Exception e) {
-            return null;
-        }
+    public EmailNotificationListener(UserInfo userInfo) {
+    	this.userInfo = userInfo;
     }
     
     @Override
-    public void onNotification(@Observes NotificationEvent event) {
-        UserInfo userInfo = getUserInfo();
-        Session mailSession = getSession();
+    public void onNotification(NotificationEvent event) {
+
         if (userInfo == null || mailSession == null) {
             logger.error("Cannot proceed with notifications as not all requirements are meet - mail session or userinfo is not available.");
             return;
@@ -114,7 +93,7 @@ public class EmailNotificationListener implements NotificationListener {
             }
 
             for (OrganizationalEntity entity : notification.getRecipients()) {
-                if (entity instanceof GroupImpl) {
+                if (entity instanceof Group) {
                     buildMapByLanguage(users, (Group) entity);
                 } else {
                     buildMapByLanguage(users, (User) entity);
@@ -124,35 +103,44 @@ public class EmailNotificationListener implements NotificationListener {
             Map<String, Object> variables = event.getContent();
 
 
-            Map<? extends Language, ? extends EmailNotificationHeader> headers = notification
-                    .getEmailHeaders();
+            Map<? extends Language, ? extends EmailNotificationHeader> headers = notification.getEmailHeaders();
 
             for (Iterator<Map.Entry<String, List<User>>> it = users.entrySet()
                     .iterator(); it.hasNext();) {
                
                 try { 
                     Map.Entry<String, List<User>> entry = it.next();
-                
-                    EmailNotificationHeader header = headers.get(new LanguageImpl(entry.getKey()));
+                    Language lang = TaskModelProvider.getFactory().newLanguage();
+                    lang.setMapkey(entry.getKey());
+                    EmailNotificationHeader header = headers.get(lang);
     
                     Message msg = new MimeMessage(mailSession);
-                    
+                    Set<String> toAddresses = new HashSet<String>();
                     for (User user : entry.getValue()) {
     
                         String emailAddress = userInfo.getEmailForEntity(user);
-                        msg.addRecipients( Message.RecipientType.TO, InternetAddress.parse( emailAddress, false));
+                        if (emailAddress != null && !toAddresses.contains(emailAddress)) {                        	
+                        	msg.addRecipients( Message.RecipientType.TO, InternetAddress.parse( emailAddress, false));
+                        	toAddresses.add(emailAddress);
+                        } else {
+                        	logger.warn("Email address not found for user {}", user.getId());
+                        }
                     }
                     
     
                     if (header.getFrom() != null && header.getFrom().trim().length() > 0) {
-                        msg.setFrom( new InternetAddress(userInfo.getEmailForEntity(new UserImpl(header.getFrom()))));
+                    	User user = TaskModelProvider.getFactory().newUser();
+                    	((InternalOrganizationalEntity) user).setId(header.getFrom());
+                        msg.setFrom( new InternetAddress(userInfo.getEmailForEntity(user)));
                     } else {
                         msg.setFrom( new InternetAddress(mailSession.getProperty("mail.from")));
                     }
     
                     if (header.getReplyTo() != null && header.getReplyTo().trim().length() > 0) {
+                    	User user = TaskModelProvider.getFactory().newUser();
+                    	((InternalOrganizationalEntity) user).setId(header.getReplyTo());
                         msg.setReplyTo( new InternetAddress[] {  
-                                new InternetAddress(userInfo.getEmailForEntity(new UserImpl(header.getReplyTo())))});
+                                new InternetAddress(userInfo.getEmailForEntity(user))});
                     } else if (mailSession.getProperty("mail.replyto") != null) {
                         msg.setReplyTo( new InternetAddress[] {  new InternetAddress(mailSession.getProperty("mail.replyto"))});
                     }
@@ -234,19 +222,21 @@ public class EmailNotificationListener implements NotificationListener {
     }
     
     protected void buildMapByLanguage(Map<String, List<User>> map, Group group) {
-        for (Iterator<OrganizationalEntity> it = getUserInfo()
-                .getMembersForGroup(group); it.hasNext();) {
-            OrganizationalEntity entity = it.next();
-            if (entity instanceof Group) {
-                buildMapByLanguage(map, (Group) entity);
-            } else {
-                buildMapByLanguage(map, (User) entity);
-            }
-        }
+    	Iterator<OrganizationalEntity> it = userInfo.getMembersForGroup(group);
+    	if (it != null) {
+	    	while (it.hasNext()) {
+	            OrganizationalEntity entity = it.next();
+	            if (entity instanceof Group) {
+	                buildMapByLanguage(map, (Group) entity);
+	            } else {
+	                buildMapByLanguage(map, (User) entity);
+	            }
+	        }
+    	}
     }
 
     protected void buildMapByLanguage(Map<String, List<User>> map, User user) {
-        String language = getUserInfo().getLanguageForEntity(user);
+        String language = userInfo.getLanguageForEntity(user);
         List<User> list = map.get(language);
         if (list == null) {
             list = new ArrayList<User>();

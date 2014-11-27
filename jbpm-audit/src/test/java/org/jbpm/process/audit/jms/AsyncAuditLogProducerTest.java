@@ -1,12 +1,8 @@
 package org.jbpm.process.audit.jms;
 
-import static org.jbpm.persistence.util.PersistenceUtil.JBPM_PERSISTENCE_UNIT_NAME;
-import static org.jbpm.persistence.util.PersistenceUtil.cleanUp;
-import static org.jbpm.persistence.util.PersistenceUtil.createEnvironment;
-import static org.jbpm.persistence.util.PersistenceUtil.setupWithPoolingDataSource;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.jbpm.process.audit.AbstractAuditLogServiceTest.*;
+import static org.jbpm.persistence.util.PersistenceUtil.*;
+import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,11 +25,10 @@ import javax.transaction.UserTransaction;
 import org.drools.core.io.impl.ClassPathResource;
 import org.hornetq.jms.server.embedded.EmbeddedJMS;
 import org.jbpm.process.audit.AbstractAuditLogger;
+import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.AuditLoggerFactory;
 import org.jbpm.process.audit.AuditLoggerFactory.Type;
-import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.JPAAuditLogService;
-import org.jbpm.process.audit.JPAProcessInstanceDbLog;
 import org.jbpm.process.audit.NodeInstanceLog;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.jbpm.process.instance.impl.demo.SystemOutWorkItemHandler;
@@ -102,7 +97,7 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         MessageReceiver receiver = new MessageReceiver();
         List<Message> messages = receiver.receive(queue);
         assertNotNull(messages);
-        assertEquals(8, messages.size());
+        assertEquals(11, messages.size());
 
     }
     
@@ -132,7 +127,7 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         MessageReceiver receiver = new MessageReceiver();
         List<Message> messages = receiver.receive(queue);
         assertNotNull(messages);
-        assertEquals(8, messages.size());
+        assertEquals(11, messages.size());
 
     }
     
@@ -194,7 +189,7 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         MessageReceiver receiver = new MessageReceiver();
         List<Message> messages = receiver.receive(queue);
         assertNotNull(messages);
-        assertEquals(8, messages.size());
+        assertEquals(11, messages.size());
 
     }
     
@@ -229,7 +224,7 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         assertEquals(6, nodeInstances.size());
         for (NodeInstanceLog nodeInstance: nodeInstances) {
 
-            assertEquals(processInstance.getId(), nodeInstance.getProcessInstanceId());
+            assertEquals(processInstance.getId(), nodeInstance.getProcessInstanceId().longValue());
             assertEquals("com.sample.ruleflow", nodeInstance.getProcessId());
             assertNotNull(nodeInstance.getDate());
         }
@@ -267,7 +262,7 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         assertEquals(6, nodeInstances.size());
         for (NodeInstanceLog nodeInstance: nodeInstances) {
 
-            assertEquals(processInstance.getId(), nodeInstance.getProcessInstanceId());
+            assertEquals(processInstance.getId(), nodeInstance.getProcessInstanceId().longValue());
             assertEquals("com.sample.ruleflow", nodeInstance.getProcessId());
             assertNotNull(nodeInstance.getDate());
         }
@@ -277,23 +272,9 @@ public class AsyncAuditLogProducerTest extends AbstractBaseTest {
         assertTrue(processInstances.isEmpty());
     }
     
-    private KnowledgeBase createKnowledgeBase() {
-        KnowledgeBuilder kbuilder = KnowledgeBuilderFactory.newKnowledgeBuilder();
-        kbuilder.add(new ClassPathResource("ruleflow.rf"), ResourceType.DRF);
-        kbuilder.add(new ClassPathResource("ruleflow2.rf"), ResourceType.DRF);
-        kbuilder.add(new ClassPathResource("ruleflow3.rf"), ResourceType.DRF);
-        KnowledgeBase kbase = KnowledgeBaseFactory.newKnowledgeBase();
-        kbase.addKnowledgePackages(kbuilder.getKnowledgePackages());
-        return kbase;
-    }
-    
     public StatefulKnowledgeSession createSession(KnowledgeBase kbase, Environment env) {
         
-        Properties properties = new Properties();
-        properties.put("drools.processInstanceManagerFactory", "org.jbpm.persistence.processinstance.JPAProcessInstanceManagerFactory");
-        properties.put("drools.processSignalManagerFactory", "org.jbpm.persistence.processinstance.JPASignalManagerFactory");
-        KieSessionConfiguration config = KnowledgeBaseFactory.newKnowledgeSessionConfiguration(properties);
-        StatefulKnowledgeSession session = JPAKnowledgeService.newStatefulKnowledgeSession(kbase, config, env);
+        StatefulKnowledgeSession session = createKieSession(kbase, env);
         session.getWorkItemManager().registerWorkItemHandler("Human Task", new SystemOutWorkItemHandler());
         return session;
     }

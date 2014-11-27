@@ -16,21 +16,21 @@
 package org.jbpm.runtime.manager.impl;
 
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.Persistence;
 
 import org.jbpm.process.core.timer.GlobalSchedulerService;
 import org.jbpm.process.core.timer.impl.QuartzSchedulerService;
 import org.jbpm.process.core.timer.impl.ThreadPoolSchedulerService;
+import org.jbpm.runtime.manager.impl.identity.UserDataServiceProvider;
+import org.jbpm.runtime.manager.impl.jpa.EntityManagerFactoryManager;
 import org.jbpm.runtime.manager.impl.mapper.InMemoryMapper;
 import org.jbpm.runtime.manager.impl.mapper.JPAMapper;
-import org.jbpm.services.task.identity.MvelUserGroupCallbackImpl;
 import org.kie.api.runtime.EnvironmentName;
 
 /**
- * Default implementation of RuntimeEnvironment that aims at providing all 
- * common settings with minimum need for configuration.
+ * Default implementation of the RuntimeEnvironment that aims at providing all 
+ * common settings with a minimum need for configuration.
  * 
- * It configures automatically following components:
+ * It automatically configures the following components:
  * <ul>
  *  <li>uses <code>DefaultRegisterableItemsFactory</code> to provide work item handlers and event listeners instances</li>
  *  <li>EntityManagerFactory - if non given uses persistence unit with "org.jbpm.persistence.jpa" name</li>
@@ -55,21 +55,19 @@ public class DefaultRuntimeEnvironment extends SimpleRuntimeEnvironment {
         this.emf = emf;
         this.schedulerService = globalSchedulerService;
         this.usePersistence = true;
-        // TODO is this the right one to be default?
-        this.userGroupCallback = new MvelUserGroupCallbackImpl();
+        this.userGroupCallback = UserDataServiceProvider.getUserGroupCallback();
     }
     
     public DefaultRuntimeEnvironment(EntityManagerFactory emf, boolean usePersistence) {
         this(emf, null);
         this.usePersistence = usePersistence;
         this.emf = emf;
-        // TODO is this the right one to be default?
-        this.userGroupCallback = new MvelUserGroupCallbackImpl();
+        this.userGroupCallback = UserDataServiceProvider.getUserGroupCallback();
     }
     
     public void init() {
-        if (emf == null) {
-            emf = Persistence.createEntityManagerFactory("org.jbpm.persistence.jpa");
+        if (emf == null && getEnvironmentTemplate().get(EnvironmentName.CMD_SCOPED_ENTITY_MANAGER) == null) {
+            emf = EntityManagerFactoryManager.get().getOrCreate("org.jbpm.persistence.jpa");
         }   
         addToEnvironment(EnvironmentName.ENTITY_MANAGER_FACTORY, emf);
         if (this.mapper == null) {

@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.drools.core.common.DefaultFactHandle;
-import org.drools.core.common.InternalRuleBase;
 import org.drools.core.common.InternalWorkingMemory;
+import org.drools.core.impl.InternalKnowledgeBase;
 import org.drools.core.marshalling.impl.MarshallerReaderContext;
 import org.drools.core.marshalling.impl.MarshallerWriteContext;
 import org.drools.core.marshalling.impl.PersisterHelper;
@@ -45,19 +45,7 @@ import org.jbpm.process.instance.context.swimlane.SwimlaneContextInstance;
 import org.jbpm.process.instance.context.variable.VariableScopeInstance;
 import org.jbpm.workflow.instance.impl.NodeInstanceImpl;
 import org.jbpm.workflow.instance.impl.WorkflowProcessInstanceImpl;
-import org.jbpm.workflow.instance.node.CompositeContextNodeInstance;
-import org.jbpm.workflow.instance.node.DynamicNodeInstance;
-import org.jbpm.workflow.instance.node.EventNodeInstance;
-import org.jbpm.workflow.instance.node.EventSubProcessNodeInstance;
-import org.jbpm.workflow.instance.node.ForEachNodeInstance;
-import org.jbpm.workflow.instance.node.HumanTaskNodeInstance;
-import org.jbpm.workflow.instance.node.JoinInstance;
-import org.jbpm.workflow.instance.node.MilestoneNodeInstance;
-import org.jbpm.workflow.instance.node.RuleSetNodeInstance;
-import org.jbpm.workflow.instance.node.StateNodeInstance;
-import org.jbpm.workflow.instance.node.SubProcessNodeInstance;
-import org.jbpm.workflow.instance.node.TimerNodeInstance;
-import org.jbpm.workflow.instance.node.WorkItemNodeInstance;
+import org.jbpm.workflow.instance.node.*;
 import org.kie.api.definition.process.Process;
 import org.kie.api.runtime.process.NodeInstance;
 import org.kie.api.runtime.process.NodeInstanceContainer;
@@ -89,6 +77,9 @@ public abstract class AbstractProtobufProcessInstanceMarshaller
                 .setParentProcessInstanceId(workFlow.getParentProcessInstanceId());
         if (workFlow.getProcessXml() != null) {
             _instance.setProcessXml( workFlow.getProcessXml());
+        }
+        if (workFlow.getDescription() != null) {
+            _instance.setDescription(workFlow.getDescription());
         }
         
         _instance.addAllCompletedNodeIds(workFlow.getCompletedNodeIds());
@@ -449,7 +440,7 @@ public abstract class AbstractProtobufProcessInstanceMarshaller
 
     // Input methods
     public ProcessInstance readProcessInstance(MarshallerReaderContext context) throws IOException {
-        InternalRuleBase ruleBase = context.ruleBase;
+        InternalKnowledgeBase ruleBase = context.kBase;
         InternalWorkingMemory wm = context.wm;
         
         JBPMMessages.ProcessInstance _instance = (org.jbpm.marshalling.impl.JBPMMessages.ProcessInstance) context.parameterObject;
@@ -485,6 +476,7 @@ public abstract class AbstractProtobufProcessInstanceMarshaller
             }
             processInstance.setProcess( process );
         }
+        processInstance.setDescription(_instance.getDescription());
         processInstance.setState( _instance.getState() );
         processInstance.setParentProcessInstanceId(_instance.getParentProcessInstanceId());
         long nodeInstanceCounter = _instance.getNodeInstanceCounter();
@@ -562,7 +554,7 @@ public abstract class AbstractProtobufProcessInstanceMarshaller
         nodeInstance.setNodeInstanceContainer( nodeInstanceContainer );
         nodeInstance.setProcessInstance( (org.jbpm.workflow.instance.WorkflowProcessInstance) processInstance );
         nodeInstance.setId( _node.getId() );
-        nodeInstance.setLevel(_node.getLevel());
+        nodeInstance.setLevel(_node.getLevel()==0?1:_node.getLevel());
 
         switch ( _node.getContent().getType() ) {
             case COMPOSITE_CONTEXT_NODE :
@@ -634,6 +626,15 @@ public abstract class AbstractProtobufProcessInstanceMarshaller
                     readNodeInstance( context,
                                       (EventSubProcessNodeInstance) nodeInstance,
                                       processInstance );
+                    VariableScopeInstance variableScopeInstance = (VariableScopeInstance) ((EventSubProcessNodeInstance) nodeInstance).getContextInstance( VariableScope.VARIABLE_SCOPE );
+                    for ( JBPMMessages.Variable _variable : _node.getContent().getComposite().getVariableList() ) {
+                        try {
+                            Object _value = ProtobufProcessMarshaller.unmarshallVariableValue( context, _variable );
+                            variableScopeInstance.internalSetVariable( _variable.getName(), _value );
+                        } catch ( ClassNotFoundException e ) {
+                            throw new IllegalArgumentException( "Could not reload variable " + _variable.getName() );
+                        }
+                    }
                 }
                 break;
             default :

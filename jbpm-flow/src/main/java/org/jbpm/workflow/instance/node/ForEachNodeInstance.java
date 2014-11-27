@@ -21,8 +21,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.kie.api.definition.process.Connection;
-import org.kie.api.definition.process.Node;
+import org.drools.core.util.MVELSafeHelper;
 import org.jbpm.process.core.ContextContainer;
 import org.jbpm.process.core.context.variable.VariableScope;
 import org.jbpm.process.instance.ContextInstance;
@@ -34,7 +33,8 @@ import org.jbpm.workflow.instance.NodeInstance;
 import org.jbpm.workflow.instance.NodeInstanceContainer;
 import org.jbpm.workflow.instance.impl.NodeInstanceImpl;
 import org.jbpm.workflow.instance.impl.NodeInstanceResolverFactory;
-import org.mvel2.MVEL;
+import org.kie.api.definition.process.Connection;
+import org.kie.api.definition.process.Node;
 
 /**
  * Runtime counterpart of a for each node.
@@ -88,24 +88,9 @@ public class ForEachNodeInstance extends CompositeContextNodeInstance {
     }
     
     @Override
-    public void internalTrigger(org.kie.api.runtime.process.NodeInstance from,
-            String type) {
-        super.internalTrigger(from, type);
-    }
-    
-
-    @Override
-    public void cancel() {
-        super.cancel();
-    }
-    
-
-    @Override
     public ContextContainer getContextContainer() {
         return (ContextContainer) getForEachNode().getCompositeNode();
     }
-    
-    
     
     private Collection<?> evaluateCollectionExpression(String collectionExpression) {
         // TODO: should evaluate this expression using MVEL
@@ -116,7 +101,7 @@ public class ForEachNodeInstance extends CompositeContextNodeInstance {
             collection = variableScopeInstance.getVariable(collectionExpression);
         } else {
             try {
-                collection = MVEL.eval(collectionExpression, new NodeInstanceResolverFactory(this));
+                collection = MVELSafeHelper.getEvaluator().eval(collectionExpression, new NodeInstanceResolverFactory(this));
             } catch (Throwable t) {
                 throw new IllegalArgumentException(
                     "Could not find collection " + collectionExpression);

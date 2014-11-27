@@ -27,6 +27,7 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -62,12 +63,14 @@ public class RequestInfo implements org.kie.internal.executor.api.RequestInfo, S
     //Number of times that this request has been executed
     private int executions = 0;
     private String deploymentId;
+    // owning component of this request, meaning when set only same component can execute it 
+    private String owner;
     
     @Lob
     private byte[] requestData;
     @Lob
     private byte[] responseData;
-    @OneToMany(cascade= CascadeType.ALL, mappedBy="requestInfo")
+    @OneToMany(cascade= CascadeType.ALL, mappedBy="requestInfo", fetch=FetchType.EAGER)
     private List<ErrorInfo> errorInfo = new ArrayList<ErrorInfo>();
 
     public RequestInfo() {
@@ -170,9 +173,21 @@ public class RequestInfo implements org.kie.internal.executor.api.RequestInfo, S
         this.responseData = responseData;
     }
 
-    @Override
+	public String getOwner() {
+		return owner;
+	}
+
+	public void setOwner(String owner) {
+		this.owner = owner;
+	}
+
+
+	@Override
     public String toString() {
-        return "RequestInfo{" + "id=" + id + ", time=" + time + ", status=" + status + ", commandName=" + commandName + ", message=" + message + ", key=" + key + ", requestData=" + requestData + ", responseData=" + responseData + ", error=" + errorInfo + '}';
+        return "RequestInfo{" + "id=" + id + ", time=" + time 
+        		+ ", status=" + status + ", commandName=" + commandName + ", message=" + message + ", owner=" + owner
+        		+ ", key=" + key + ", requestData=" + requestData + ", responseData=" + responseData 
+        		+ ", error=" + errorInfo + '}';
     }
 
     @Override
@@ -202,6 +217,9 @@ public class RequestInfo implements org.kie.internal.executor.api.RequestInfo, S
         if ((this.key == null) ? (other.key != null) : !this.key.equals(other.key)) {
             return false;
         }
+        if ((this.owner == null) ? (other.owner != null) : !this.owner.equals(other.owner)) {
+            return false;
+        }
         if ((this.deploymentId == null) ? (other.deploymentId != null) : !this.deploymentId.equals(other.deploymentId)) {
             return false;
         }
@@ -226,12 +244,11 @@ public class RequestInfo implements org.kie.internal.executor.api.RequestInfo, S
         hash = 79 * hash + (this.commandName != null ? this.commandName.hashCode() : 0);
         hash = 79 * hash + (this.message != null ? this.message.hashCode() : 0);
         hash = 79 * hash + (this.key != null ? this.key.hashCode() : 0);
+        hash = 79 * hash + (this.owner != null ? this.owner.hashCode() : 0);
         hash = 79 * hash + (this.deploymentId != null ? this.deploymentId.hashCode() : 0);
         hash = 79 * hash + Arrays.hashCode(this.requestData);
         hash = 79 * hash + Arrays.hashCode(this.responseData);
         hash = 79 * hash + (this.errorInfo != null ? this.errorInfo.hashCode() : 0);
         return hash;
-    }
-
-    
+    }    
 }

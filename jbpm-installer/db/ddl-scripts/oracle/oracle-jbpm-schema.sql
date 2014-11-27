@@ -1,126 +1,5 @@
-
-    drop table Attachment cascade constraints;
-
-    drop table BAMTaskSummary cascade constraints;
-
-    drop table BooleanExpression cascade constraints;
-
-    drop table Content cascade constraints;
-
-    drop table ContextMappingInfo cascade constraints;
-
-    drop table CorrelationKeyInfo cascade constraints;
-
-    drop table CorrelationPropertyInfo cascade constraints;
-
-    drop table Deadline cascade constraints;
-
-    drop table Delegation_delegates cascade constraints;
-
-    drop table ErrorInfo cascade constraints;
-
-    drop table Escalation cascade constraints;
-
-    drop table EventTypes cascade constraints;
-
-    drop table I18NText cascade constraints;
-
-    drop table NodeInstanceLog cascade constraints;
-
-    drop table Notification cascade constraints;
-
-    drop table Notification_BAs cascade constraints;
-
-    drop table Notification_Recipients cascade constraints;
-
-    drop table Notification_email_header cascade constraints;
-
-    drop table OrganizationalEntity cascade constraints;
-
-    drop table PeopleAssignments_BAs cascade constraints;
-
-    drop table PeopleAssignments_ExclOwners cascade constraints;
-
-    drop table PeopleAssignments_PotOwners cascade constraints;
-
-    drop table PeopleAssignments_Recipients cascade constraints;
-
-    drop table PeopleAssignments_Stakeholders cascade constraints;
-
-    drop table ProcessInstanceInfo cascade constraints;
-
-    drop table ProcessInstanceLog cascade constraints;
-
-    drop table Reassignment cascade constraints;
-
-    drop table Reassignment_potentialOwners cascade constraints;
-
-    drop table RequestInfo cascade constraints;
-
-    drop table SessionInfo cascade constraints;
-
-    drop table Task cascade constraints;
-
-    drop table TaskDef cascade constraints;
-
-    drop table VariableInstanceLog cascade constraints;
-
-    drop table WorkItemInfo cascade constraints;
-
-    drop table email_header cascade constraints;
-
-    drop table task_comment cascade constraints;
-
-    drop sequence ATTACHMENT_ID_SEQ;
-
-    drop sequence BAM_TASK_ID_SEQ;
-
-    drop sequence BOOLEANEXPR_ID_SEQ;
-
-    drop sequence COMMENT_ID_SEQ;
-
-    drop sequence CONTENT_ID_SEQ;
-
-    drop sequence CONTEXT_MAPPING_INFO_ID_SEQ;
-
-    drop sequence CORRELATION_KEY_ID_SEQ;
-
-    drop sequence CORRELATION_PROP_ID_SEQ;
-
-    drop sequence DEADLINE_ID_SEQ;
-
-    drop sequence EMAILNOTIFHEAD_ID_SEQ;
-
-    drop sequence ERROR_INFO_ID_SEQ;
-
-    drop sequence ESCALATION_ID_SEQ;
-
-    drop sequence I18NTEXT_ID_SEQ;
-
-    drop sequence NODE_INST_LOG_ID_SEQ;
-
-    drop sequence NOTIFICATION_ID_SEQ;
-
-    drop sequence PROCESS_INSTANCE_INFO_ID_SEQ;
-
-    drop sequence PROC_INST_LOG_ID_SEQ;
-
-    drop sequence REASSIGNMENT_ID_SEQ;
-
-    drop sequence REQUEST_INFO_ID_SEQ;
-
-    drop sequence SESSIONINFO_ID_SEQ;
-
-    drop sequence TASK_DEF_ID_SEQ;
-
-    drop sequence TASK_ID_SEQ;
-
-    drop sequence VAR_INST_LOG_ID_SEQ;
-
-    drop sequence WORKITEMINFO_ID_SEQ;
-
     create table Attachment (
-        AttachmentId number(19,0) not null,
+        id number(19,0) not null,
         accessType number(10,0),
         attachedAt timestamp,
         attachmentContentId number(19,0) not null,
@@ -129,11 +8,31 @@
         attachment_size number(10,0),
         attachedBy_id varchar2(255 char),
         TaskData_Attachments_Id number(19,0),
-        primary key (AttachmentId)
+        primary key (id)
+    );
+
+    create table AuditTaskImpl (
+        id number(19,0) not null,
+        activationTime date,
+        actualOwner varchar2(255 char),
+        createdBy varchar2(255 char),
+        createdOn date,
+        deploymentId varchar2(255 char),
+        description varchar2(255 char),
+        dueDate date,
+        name varchar2(255 char),
+        parentId number(19,0) not null,
+        priority number(10,0) not null,
+        processId varchar2(255 char),
+        processInstanceId number(19,0) not null,
+        processSessionId number(10,0) not null,
+        status varchar2(255 char),
+        taskId number(19,0),
+        primary key (id)
     );
 
     create table BAMTaskSummary (
-        BAMTaskId number(19,0) not null,
+        pk number(19,0) not null,
         createdDate timestamp,
         duration number(19,0),
         endDate timestamp,
@@ -143,7 +42,8 @@
         taskId number(19,0) not null,
         taskName varchar2(255 char),
         userId varchar2(255 char),
-        primary key (BAMTaskId)
+        OPTLOCK number(10,0),
+        primary key (pk)
     );
 
     create table BooleanExpression (
@@ -164,6 +64,7 @@
         mappingId number(19,0) not null,
         CONTEXT_ID varchar2(255 char) not null,
         KSESSION_ID number(10,0) not null,
+        OWNER_ID varchar2(255 char),
         OPTLOCK number(10,0),
         primary key (mappingId)
     );
@@ -199,6 +100,16 @@
         entity_id varchar2(255 char) not null
     );
 
+    create table DeploymentStore (
+        id number(19,0) not null,
+        attributes varchar2(255 char),
+        DEPLOYMENT_ID varchar2(255 char),
+        deploymentUnit clob,
+        state number(10,0),
+        updateDate timestamp,
+        primary key (id)
+    );
+
     create table ErrorInfo (
         id number(19,0) not null,
         message varchar2(255 char),
@@ -217,11 +128,11 @@
 
     create table EventTypes (
         InstanceId number(19,0) not null,
-        eventTypes varchar2(255 char)
+        element varchar2(255 char)
     );
 
     create table I18NText (
-        I18NTextId number(19,0) not null,
+        id number(19,0) not null,
         language varchar2(255 char),
         shortText varchar2(255 char),
         text clob,
@@ -234,7 +145,7 @@
         Notification_Documentation_Id number(19,0),
         Notification_Descriptions_Id number(19,0),
         Deadline_Documentation_Id number(19,0),
-        primary key (I18NTextId)
+        primary key (id)
     );
 
     create table NodeInstanceLog (
@@ -255,10 +166,10 @@
 
     create table Notification (
         DTYPE varchar2(31 char) not null,
-        NotificationId number(19,0) not null,
+        id number(19,0) not null,
         priority number(10,0) not null,
         Escalation_Notifications_Id number(19,0),
-        primary key (NotificationId)
+        primary key (id)
     );
 
     create table Notification_BAs (
@@ -272,10 +183,10 @@
     );
 
     create table Notification_email_header (
-        Notification_NotificationId number(19,0) not null,
+        Notification_id number(19,0) not null,
         emailHeaders_id number(19,0) not null,
         mapkey varchar2(255 char) not null,
-        primary key (Notification_NotificationId, mapkey)
+        primary key (Notification_id, mapkey)
     );
 
     create table OrganizationalEntity (
@@ -330,6 +241,7 @@
         outcome varchar2(255 char),
         parentProcessInstanceId number(19,0),
         processId varchar2(255 char),
+        processInstanceDescription varchar2(255 char),
         processInstanceId number(19,0) not null,
         processName varchar2(255 char),
         processVersion varchar2(255 char),
@@ -356,6 +268,7 @@
         executions number(10,0) not null,
         businessKey varchar2(255 char),
         message varchar2(255 char),
+        owner varchar2(255 char),
         requestData blob,
         responseData blob,
         retries number(10,0) not null,
@@ -374,12 +287,15 @@
     );
 
     create table Task (
-        TaskId number(19,0) not null,
+        id number(19,0) not null,
         archived number(5,0),
         allowedToDelegate varchar2(255 char),
+        description varchar2(255 char),
         formName varchar2(255 char),
+        name varchar2(255 char),
         priority number(10,0) not null,
         subTaskStrategy varchar2(255 char),
+        subject varchar2(255 char),
         activationTime timestamp,
         createdOn timestamp,
         deploymentId varchar2(255 char),
@@ -407,14 +323,26 @@
         taskInitiator_id varchar2(255 char),
         actualOwner_id varchar2(255 char),
         createdBy_id varchar2(255 char),
-        primary key (TaskId)
+        primary key (id)
     );
 
     create table TaskDef (
-        TaskDefId number(19,0) not null,
+        id number(19,0) not null,
         name varchar2(255 char),
         priority number(10,0) not null,
-        primary key (TaskDefId)
+        primary key (id)
+    );
+
+    create table TaskEvent (
+        id number(19,0) not null,
+        logTime timestamp,
+        processInstanceId number(19,0),
+        taskId number(19,0),
+        type varchar2(255 char),
+        userId varchar2(255 char),
+        OPTLOCK number(10,0),
+        workItemId number(19,0),
+        primary key (id)
     );
 
     create table VariableInstanceLog (
@@ -499,6 +427,9 @@
         add constraint FK47485D57786553A5 
         foreign key (task_id) 
         references Task;
+
+    alter table DeploymentStore 
+        add constraint UK_DeploymentStore_1 unique (DEPLOYMENT_ID);
 
     alter table ErrorInfo 
         add constraint FK8B1186B6724A467 
@@ -594,8 +525,8 @@
         references email_header;
 
     alter table Notification_email_header 
-        add constraint FKF30FE344DD2D7416 
-        foreign key (Notification_NotificationId) 
+        add constraint FKF30FE3443E3E97EB 
+        foreign key (Notification_id) 
         references Notification;
 
     alter table PeopleAssignments_BAs 
@@ -690,6 +621,8 @@
 
     create sequence ATTACHMENT_ID_SEQ;
 
+    create sequence AUDIT_ID_SEQ;
+
     create sequence BAM_TASK_ID_SEQ;
 
     create sequence BOOLEANEXPR_ID_SEQ;
@@ -705,6 +638,8 @@
     create sequence CORRELATION_PROP_ID_SEQ;
 
     create sequence DEADLINE_ID_SEQ;
+
+    create sequence DEPLOY_STORE_ID_SEQ;
 
     create sequence EMAILNOTIFHEAD_ID_SEQ;
 
@@ -729,6 +664,8 @@
     create sequence SESSIONINFO_ID_SEQ;
 
     create sequence TASK_DEF_ID_SEQ;
+
+    create sequence TASK_EVENT_ID_SEQ;
 
     create sequence TASK_ID_SEQ;
 

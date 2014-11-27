@@ -22,21 +22,28 @@ import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ArchivePaths;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
+import org.jbpm.test.util.TestUtil;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
+
+import bitronix.tm.resource.jdbc.PoolingDataSource;
 
 @RunWith(Arquillian.class)
 public class CDISimpleExecutorTest extends BasicExecutorBaseTest {
 
     @Deployment()
     public static Archive<?> createDeployment() {
+    	// setup data source as part of the deployment as it requires to be already active while boostraping archive
+    	pds = TestUtil.setupPoolingDataSource();
         return ShrinkWrap.create(JavaArchive.class, "executor-service.jar")
-                .addPackage("org.jboss.seam.transaction") //seam-persistence
                 .addPackage("org.jbpm.shared.services.api")
                 .addPackage("org.jbpm.shared.services.impl")
-                .addPackage("org.kie.commons.java.nio.fs.jgit")
                 .addPackage("org.jbpm.executor")
                 .addPackage("org.jbpm.executor.api")
                 .addPackage("org.jbpm.executor.impl")
+                .addPackage("org.jbpm.executor.impl.jpa")
+                .addPackage("org.jbpm.executor.impl.mem")
                 .addPackage("org.jbpm.executor.entities")
                 .addPackage("org.jbpm.executor.commands")
                 .addPackage("org.jbpm.executor.events.listeners")
@@ -44,7 +51,23 @@ public class CDISimpleExecutorTest extends BasicExecutorBaseTest {
                 
                 .addAsManifestResource("META-INF/persistence.xml", ArchivePaths.create("persistence.xml"))
                 .addAsManifestResource("META-INF/Executor-orm.xml", ArchivePaths.create("Executor-orm.xml"))
-                .addAsManifestResource("META-INF/beans.xml", ArchivePaths.create("beans.xml"));
+                .addAsManifestResource("META-INF/beans.xml", ArchivePaths.create("beans.xml"))
+        		.addAsManifestResource("META-INF/javax.enterprise.inject.spi.Extension", 
+        				"services/javax.enterprise.inject.spi.Extension");
 
+    }
+
+    private static PoolingDataSource pds;
+    
+    @BeforeClass
+    public static void beforeClass() {
+    	if (pds == null) {
+    		pds = TestUtil.setupPoolingDataSource();
+    	}
+    }
+    
+    @AfterClass
+    public static void afterClass() {
+    	pds.close();
     }
 }

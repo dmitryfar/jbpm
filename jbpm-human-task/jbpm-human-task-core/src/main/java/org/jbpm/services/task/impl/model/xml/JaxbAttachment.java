@@ -7,14 +7,14 @@ import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
-import org.jbpm.services.task.impl.model.xml.adapter.UserXmlAdapter;
+import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.kie.api.task.model.Attachment;
 import org.kie.api.task.model.User;
 
 @XmlRootElement(name="attachment")
 @XmlAccessorType(XmlAccessType.FIELD)
+@JsonAutoDetect(getterVisibility=JsonAutoDetect.Visibility.NONE, setterVisibility=JsonAutoDetect.Visibility.NONE, fieldVisibility=JsonAutoDetect.Visibility.ANY)
 public class JaxbAttachment extends AbstractJaxbTaskObject<Attachment> implements Attachment {
 
     @XmlElement
@@ -33,12 +33,12 @@ public class JaxbAttachment extends AbstractJaxbTaskObject<Attachment> implement
     @XmlSchemaType(name = "dateTime")
     private Date attachedAt;
 
-    @XmlElement
-    @XmlJavaTypeAdapter(value=UserXmlAdapter.class)
-    private User attachedBy;
+    @XmlElement(name="attached-by")
+    @XmlSchemaType(name = "string")
+    private String attachedBy;
 
     @XmlElement
-    @XmlSchemaType(name = "size")
+    @XmlSchemaType(name = "int")
     private Integer size;
 
     @XmlElement(name="attachment-content-id")
@@ -51,6 +51,10 @@ public class JaxbAttachment extends AbstractJaxbTaskObject<Attachment> implement
     
     public JaxbAttachment(Attachment attachment) { 
         super(attachment, Attachment.class);
+        User attacher = attachment.getAttachedBy();
+        if( attacher != null ) { 
+            this.attachedBy = attacher.getId();
+        }
     }
         
     @Override
@@ -75,7 +79,7 @@ public class JaxbAttachment extends AbstractJaxbTaskObject<Attachment> implement
 
     @Override
     public User getAttachedBy() {
-        return attachedBy;
+        return new GetterUser(this.attachedBy);
     }
 
     @Override

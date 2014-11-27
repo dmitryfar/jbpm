@@ -15,26 +15,23 @@
  */
 package org.jbpm.kie.services.impl.bpmn2;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
 import org.jbpm.bpmn2.xml.BPMNSemanticModule;
 
 public class BPMN2DataServiceSemanticModule extends BPMNSemanticModule {
-
-    @Inject 
-    private HumanTaskGetInformationHandler taskHandler;
-    @Inject 
-    private ProcessGetInformationHandler processHandler;
-    @Inject 
-    private ProcessGetInputHandler processInputHandler;
-    @Inject
-    private GetReusableSubProcessesHandler reusableSubprocessHandler;
-    @Inject
-    private DataServiceItemDefinitionHandler itemDefinitionHandler;
+	
+	private ProcessDescRepoHelper repoHelper = new ProcessDescRepoHelper();
+	private ProcessDescriptionRepository repo = new ProcessDescriptionRepository();
+    
+    private HumanTaskGetInformationHandler taskHandler = new HumanTaskGetInformationHandler(repoHelper, repo);    
+    private ProcessGetInformationHandler processHandler = new ProcessGetInformationHandler(repoHelper, repo);    
+    private ProcessGetInputHandler processInputHandler = new ProcessGetInputHandler(repoHelper, repo);    
+    private GetReusableSubProcessesHandler reusableSubprocessHandler = new GetReusableSubProcessesHandler(repoHelper, repo);    
+    private DataServiceItemDefinitionHandler itemDefinitionHandler = new DataServiceItemDefinitionHandler(repoHelper, repo);    
+    private AbstractTaskGetInformationHandler abstractTaskHandler = new AbstractTaskGetInformationHandler(repoHelper, repo);
     
     public BPMN2DataServiceSemanticModule() {
         super();
-        
+        init();
     }
 
     public void setTaskHandler(HumanTaskGetInformationHandler taskHandler) {
@@ -55,22 +52,35 @@ public class BPMN2DataServiceSemanticModule extends BPMNSemanticModule {
     public void setItemDefinitionHandler(DataServiceItemDefinitionHandler itemDefinitionHandler) {
         this.itemDefinitionHandler = itemDefinitionHandler;
     }
+
+    public void setAbstractTaskHandler(AbstractTaskGetInformationHandler abstractTaskHandler) {
+        this.abstractTaskHandler = abstractTaskHandler;
+    }
     
-    
-    @PostConstruct
-    public void init(){
-        ProcessDescRepoHelper repoHelper = new ProcessDescRepoHelper();
-        taskHandler.setRepositoryHelper(repoHelper);
-        processHandler.setRepositoryHelper(repoHelper);
-        processInputHandler.setRepositoryHelper(repoHelper);
-        reusableSubprocessHandler.setRepositoryHelper(repoHelper);
-        itemDefinitionHandler.setRepositoryHelper(repoHelper);
+    public void init(){       
         
         addHandler("userTask", taskHandler);
         addHandler("process", processHandler);
         addHandler("property", processInputHandler);
         addHandler("itemDefinition", itemDefinitionHandler);
         addHandler("callActivity", reusableSubprocessHandler);
-    }    
+        addHandler("task", abstractTaskHandler);
+    }
+
+	public ProcessDescRepoHelper getRepoHelper() {
+		return repoHelper;
+	}
+
+	public void setRepoHelper(ProcessDescRepoHelper repoHelper) {
+		this.repoHelper = repoHelper;
+	}
+
+	public ProcessDescriptionRepository getRepo() {
+		return repo;
+	}
+
+	public void setRepo(ProcessDescriptionRepository repo) {
+		this.repo = repo;
+	}    
     
 }

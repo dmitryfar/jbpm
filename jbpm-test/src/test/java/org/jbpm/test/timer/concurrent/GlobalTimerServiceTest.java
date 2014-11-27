@@ -14,16 +14,10 @@ import javax.transaction.UserTransaction;
 import org.drools.core.command.impl.CommandBasedStatefulKnowledgeSession;
 import org.drools.persistence.SingleSessionCommandService;
 import org.hibernate.StaleObjectStateException;
-import org.jbpm.process.audit.AuditLogService;
-import org.jbpm.process.audit.JPAAuditLogService;
-import org.jbpm.process.audit.ProcessInstanceLog;
 import org.jbpm.process.core.timer.GlobalSchedulerService;
 import org.jbpm.process.core.timer.impl.ThreadPoolSchedulerService;
-import org.jbpm.runtime.manager.impl.RuntimeEnvironmentBuilder;
 import org.jbpm.services.task.exception.PermissionDeniedException;
 import org.jbpm.services.task.identity.JBossUserGroupCallbackImpl;
-import org.jbpm.services.task.impl.model.GroupImpl;
-import org.jbpm.services.task.impl.model.UserImpl;
 import org.jbpm.test.timer.TimerBaseTest;
 import org.joda.time.DateTime;
 import org.junit.After;
@@ -31,18 +25,25 @@ import org.junit.Before;
 import org.junit.Test;
 import org.kie.api.io.ResourceType;
 import org.kie.api.runtime.manager.RuntimeEngine;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
+import org.kie.api.runtime.manager.RuntimeEnvironmentBuilder;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.runtime.manager.RuntimeManagerFactory;
+import org.kie.api.runtime.manager.audit.AuditService;
+import org.kie.api.runtime.manager.audit.ProcessInstanceLog;
 import org.kie.api.runtime.process.ProcessInstance;
 import org.kie.api.task.TaskService;
+import org.kie.api.task.model.Group;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.TaskSummary;
+import org.kie.api.task.model.User;
 import org.kie.internal.io.ResourceFactory;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
-import org.kie.internal.runtime.manager.RuntimeManagerFactory;
 import org.kie.internal.runtime.manager.context.EmptyContext;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.kie.internal.task.api.InternalTaskService;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.UserGroupCallback;
+import org.kie.internal.task.api.model.InternalOrganizationalEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +87,8 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
 	
     @Test
     public void testSessionPerProcessInstance() throws Exception {
-        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.getDefault()
+        RuntimeEnvironment environment = RuntimeEnvironmentBuilder.Factory.get()
+    			.newDefaultBuilder()
                 .userGroupCallback(userGroupCallback)
                 .addAsset(ResourceFactory.newClassPathResource("BPMN2-IntermediateCatchEventTimerCycleWithHT.bpmn2"), ResourceType.BPMN2)
                 .schedulerService(globalScheduler)
@@ -100,9 +102,17 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
         RuntimeEngine engine = manager.getRuntimeEngine(EmptyContext.get());
         TaskService taskService = engine.getTaskService();
         
-        ((InternalTaskService)taskService).addGroup(new GroupImpl("HR"));
-        ((InternalTaskService)taskService).addUser(new UserImpl("mary"));
-        ((InternalTaskService)taskService).addUser(new UserImpl("john"));
+        Group grouphr = TaskModelProvider.getFactory().newGroup();
+        ((InternalOrganizationalEntity) grouphr).setId("HR");
+        
+        User mary = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) mary).setId("mary");
+        User john = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) john).setId("john");
+        
+        ((InternalTaskService)taskService).addGroup(grouphr);
+        ((InternalTaskService)taskService).addUser(mary);
+        ((InternalTaskService)taskService).addUser(john);
         
         manager.disposeRuntimeEngine(engine);
  
@@ -121,9 +131,10 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
             }
         }
         //make sure all process instance were completed
-        AuditLogService logService = new JPAAuditLogService(environment.getEnvironment());
+        engine = manager.getRuntimeEngine(EmptyContext.get());
+        AuditService logService = engine.getAuditService();
         //active
-        List<ProcessInstanceLog> logs = logService.findActiveProcessInstances("IntermediateCatchEvent");
+        List<? extends ProcessInstanceLog> logs = logService.findActiveProcessInstances("IntermediateCatchEvent");
         assertNotNull(logs);
         for (ProcessInstanceLog log : logs) {
             logger.debug("Left over {}", log.getProcessInstanceId());
@@ -134,7 +145,7 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
         logs = logService.findProcessInstances("IntermediateCatchEvent");
         assertNotNull(logs);
         assertEquals(nbThreadsProcess, logs.size());
-        logService.dispose();
+        manager.disposeRuntimeEngine(engine);
         
         logger.debug("Done");
     }
@@ -260,10 +271,11 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
                 // wait for amount of time timer expires and plus 1s initially
                 Thread.sleep(wait * 1000 + 1000);
                 long processInstanceId = counter+1;
-                RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get(processInstanceId));
+                
 
                 for (int y = 0; y<wait; y++) {
-                    try {
+                	RuntimeEngine runtime = manager.getRuntimeEngine(ProcessInstanceIdContext.get(processInstanceId));
+                	try {
                         testCompleteTaskByProcessInstance(manager, runtime, processInstanceId);
                     } catch (Throwable e) {
                         if (checkOptimiticLockException(e)) {
@@ -275,8 +287,9 @@ public class GlobalTimerServiceTest extends TimerBaseTest {
                             throw e;
                         }
                     }
+                	manager.disposeRuntimeEngine(runtime);
                 }
-                manager.disposeRuntimeEngine(runtime);
+                
 
                 completedTask++;
             } catch (Throwable t) {

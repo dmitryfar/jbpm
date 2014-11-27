@@ -17,21 +17,23 @@
 package org.jbpm.workflow.instance.impl;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.drools.core.command.GetDefaultValue;
 import org.drools.core.common.InternalKnowledgeRuntime;
-import org.jbpm.process.core.Context;
 import org.jbpm.process.core.context.variable.VariableScope;
-import org.jbpm.process.core.impl.ProcessImpl;
 import org.jbpm.process.core.timer.Timer;
 import org.jbpm.process.instance.ContextInstance;
 import org.jbpm.process.instance.InternalProcessRuntime;
 import org.jbpm.process.instance.ProcessInstance;
 import org.jbpm.process.instance.context.variable.VariableScopeInstance;
 import org.jbpm.process.instance.impl.ProcessInstanceImpl;
-import org.jbpm.ruleflow.core.RuleFlowProcess;
 import org.jbpm.workflow.core.DroolsAction;
 import org.jbpm.workflow.core.impl.NodeImpl;
 import org.jbpm.workflow.core.node.EventNode;
@@ -71,8 +73,11 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 	private Map<String, List<EventListener>> eventListeners = new HashMap<String, List<EventListener>>();
 	private Map<String, List<EventListener>> externalEventListeners = new HashMap<String, List<EventListener>>();
 	private List<String> completedNodeIds = new ArrayList<String>();
+	private List<String> activatingNodeIds;
 	private Map<String, Integer> iterationLevels = new HashMap<String, Integer>();
 	private int currentLevel;
+	private boolean persisted = false;
+	private Object faultData;
 
 	public NodeContainer getNodeContainer() {
 		return getWorkflowProcess();
@@ -177,6 +182,17 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 		}
 		return result;
 	}
+	
+	public List<NodeInstance> getNodeInstances(final long nodeId, final List<NodeInstance> currentView) {
+		List<NodeInstance> result = new ArrayList<NodeInstance>();
+		for (final Iterator<NodeInstance> iterator = currentView.iterator(); iterator.hasNext();) {
+			final NodeInstance nodeInstance = iterator.next();
+			if (nodeInstance.getNodeId() == nodeId) {
+				result.add(nodeInstance);
+			}
+		}
+		return result;
+	}
 
 	public NodeInstance getNodeInstance(final Node node) {
 		NodeInstanceFactory conf = NodeInstanceFactoryRegistry.getInstance(getKnowledgeRuntime().getEnvironment()).getProcessNodeInstanceFactory(node);
@@ -271,6 +287,11 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 		variableScopeInstance.setVariable(name, value);
 	}
 	
+	public void setState(final int state, String outcome, Object faultData) {
+		this.faultData = faultData;
+		setState(state, outcome);
+	}
+	
 	public void setState(final int state, String outcome) {
 	    super.setState(state, outcome);
         // TODO move most of this to ProcessInstanceImpl
@@ -340,6 +361,10 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 	}
 
 	public void start() {
+		start(null);
+	}
+	
+	public void start(String trigger) {
 		synchronized (this) {
 			registerExternalEventNodeListeners();
 			// activate timer event sub processes
@@ -353,7 +378,7 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 	                }
 	            }
 	        }
-			super.start();
+			super.start(trigger);
 		}
 	}
 
@@ -391,45 +416,55 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 			if (getState() != ProcessInstance.STATE_ACTIVE) {
 				return;
 			}
-			List<EventListener> listeners = eventListeners.get(type);
-			if (listeners != null) {
-				for (EventListener listener : listeners) {
-					listener.signalEvent(type, event);
+			List<NodeInstance> currentView = new ArrayList<NodeInstance>(this.nodeInstances);
+			
+			try {
+				this.activatingNodeIds = new ArrayList<String>(); 
+				List<EventListener> listeners = eventListeners.get(type);
+				if (listeners != null) {
+					for (EventListener listener : listeners) {
+						listener.signalEvent(type, event);
+					}
 				}
-			}
-			listeners = externalEventListeners.get(type);
-			if (listeners != null) {
-				for (EventListener listener : listeners) {
-					listener.signalEvent(type, event);
+				listeners = externalEventListeners.get(type);
+				if (listeners != null) {
+					for (EventListener listener : listeners) {
+						listener.signalEvent(type, event);
+					}
 				}
-			}
-			for (Node node : getWorkflowProcess().getNodes()) {
-		        if (node instanceof EventNodeInterface) {
-		            if (((EventNodeInterface) node).acceptsEvent(type, event)) {
-		                if (node instanceof EventNode && ((EventNode) node).getFrom() == null) {
-		                    EventNodeInstance eventNodeInstance = (EventNodeInstance) getNodeInstance(node);
-		                    eventNodeInstance.signalEvent(type, event);
-		                } else if (node instanceof EventSubProcessNode ) {
-		                    EventSubProcessNodeInstance eventNodeInstance = (EventSubProcessNodeInstance) getNodeInstance(node);
-		                    eventNodeInstance.signalEvent(type, event);
-		                }  else {
-							List<NodeInstance> nodeInstances = getNodeInstances(node.getId());
-		                    if (nodeInstances != null && !nodeInstances.isEmpty()) {
-		                        for (NodeInstance nodeInstance : nodeInstances) {
-									((EventNodeInstanceInterface) nodeInstance).signalEvent(type, event);
-		                        }
-		                    }
-		                }
-		            }
-		        }
-			}
-			if (((org.jbpm.workflow.core.WorkflowProcess) getWorkflowProcess()).isDynamic()) {
 				for (Node node : getWorkflowProcess().getNodes()) {
-					if (type.equals(node.getName()) && node.getIncomingConnections().isEmpty()) {
-		    			NodeInstance nodeInstance = getNodeInstance(node);
-		                ((org.jbpm.workflow.instance.NodeInstance) nodeInstance)
-		                	.trigger(null, NodeImpl.CONNECTION_DEFAULT_TYPE);
-		    		}
+			        if (node instanceof EventNodeInterface) {
+			            if (((EventNodeInterface) node).acceptsEvent(type, event)) {
+			                if (node instanceof EventNode && ((EventNode) node).getFrom() == null) {
+			                    EventNodeInstance eventNodeInstance = (EventNodeInstance) getNodeInstance(node);
+			                    eventNodeInstance.signalEvent(type, event);
+			                } else if (node instanceof EventSubProcessNode ) {
+			                    EventSubProcessNodeInstance eventNodeInstance = (EventSubProcessNodeInstance) getNodeInstance(node);
+			                    eventNodeInstance.signalEvent(type, event);
+			                }  else {
+								List<NodeInstance> nodeInstances = getNodeInstances(node.getId(), currentView);
+			                    if (nodeInstances != null && !nodeInstances.isEmpty()) {
+			                        for (NodeInstance nodeInstance : nodeInstances) {
+										((EventNodeInstanceInterface) nodeInstance).signalEvent(type, event);
+			                        }
+			                    }
+			                }
+			            }
+			        }
+				}
+				if (((org.jbpm.workflow.core.WorkflowProcess) getWorkflowProcess()).isDynamic()) {
+					for (Node node : getWorkflowProcess().getNodes()) {
+						if (type.equals(node.getName()) && node.getIncomingConnections().isEmpty()) {
+			    			NodeInstance nodeInstance = getNodeInstance(node);
+			                ((org.jbpm.workflow.instance.NodeInstance) nodeInstance)
+			                	.trigger(null, NodeImpl.CONNECTION_DEFAULT_TYPE);
+			    		}
+					}
+				}
+			} finally {
+				if (this.activatingNodeIds != null) {
+					this.activatingNodeIds.clear();
+					this.activatingNodeIds = null;
 				}
 			}
 		}
@@ -464,6 +499,8 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
 						.getSignalManager().removeEventListener(type, this);
 				}
 			}
+		} else {
+			eventListeners.remove(type);
 		}
 	}
 
@@ -551,5 +588,31 @@ public abstract class WorkflowProcessInstanceImpl extends ProcessInstanceImpl
     public Map<String, Integer> getIterationLevels() {
         return iterationLevels;
     }
+
+	public boolean isPersisted() {
+		return persisted;
+	}
+
+	public void setPersisted(boolean persisted) {
+		this.persisted = persisted;
+	}
+	
+	public void addActivatingNodeId(String uniqueId) { 
+		if (this.activatingNodeIds == null) {
+			return;
+		}
+	    this.activatingNodeIds.add(uniqueId.intern());
+	}
+	
+	public List<String> getActivatingNodeIds() { 
+		if (this.activatingNodeIds == null) {
+			return Collections.emptyList();
+		}
+	    return new ArrayList<String>(this.activatingNodeIds);
+	}
+	
+	public Object getFaultData() {
+		return faultData;
+	}
     
 }

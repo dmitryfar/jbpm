@@ -17,9 +17,6 @@ package org.jbpm.services.task.wih;
 
 import java.util.Date;
 
-import javax.enterprise.context.ApplicationScoped;
-
-import org.jboss.seam.transaction.Transactional;
 import org.jbpm.services.task.exception.PermissionDeniedException;
 import org.jbpm.services.task.utils.OnErrorAction;
 import org.kie.api.runtime.KieSession;
@@ -31,12 +28,11 @@ import org.kie.api.task.model.Task;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.kie.internal.task.api.InternalTaskService;
 import org.kie.internal.task.api.model.ContentData;
+import org.kie.internal.task.exception.TaskException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-@ApplicationScoped
-@Transactional
 public class LocalHTWorkItemHandler extends AbstractHTWorkItemHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalHTWorkItemHandler.class);
@@ -64,7 +60,11 @@ public class LocalHTWorkItemHandler extends AbstractHTWorkItemHandler {
         try {
             long taskId = ((InternalTaskService) runtime.getTaskService()).addTask(task, content);
             if (isAutoClaim(workItem, task)) {
-                runtime.getTaskService().claim(taskId, (String) workItem.getParameter("SwimlaneActorId"));
+            	try {
+            		runtime.getTaskService().claim(taskId, (String) workItem.getParameter("SwimlaneActorId"));
+            	} catch (PermissionDeniedException e) {
+            		logger.warn("User {} is not allowed to auto claim task due to permission violation", workItem.getParameter("SwimlaneActorId"));
+            	}
             }
         } catch (Exception e) {
             if (action.equals(OnErrorAction.ABORT)) {
@@ -80,6 +80,14 @@ public class LocalHTWorkItemHandler extends AbstractHTWorkItemHandler {
                 logMsg.append(new Date()).append(": Error when creating task on task server for work item id ").append(workItem.getId());
                 logMsg.append(". Error reported by task server: ").append(e.getMessage());
                 logger.error(logMsg.toString(), e);
+                // rethrow to cancel processing if the exception is not recoverable                
+                if (!(e instanceof TaskException) || ((e instanceof TaskException) && !((TaskException) e).isRecoverable())) {
+                	if (e instanceof RuntimeException) {
+                        throw (RuntimeException) e;
+                    } else {
+                        throw new RuntimeException(e);
+                    }
+                }
             }
         } 
     }

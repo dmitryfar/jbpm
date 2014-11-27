@@ -19,7 +19,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 
-public class ProcessInstanceDesc implements Serializable{
+public class ProcessInstanceDesc implements org.jbpm.services.api.model.ProcessInstanceDesc, Serializable{
 
     private static final long serialVersionUID = 7310019271033570922L;
 
@@ -33,12 +33,14 @@ public class ProcessInstanceDesc implements Serializable{
     
     private Date dataTimeStamp;
 
-    public ProcessInstanceDesc() {
-    
-    }
+    private String processInstanceDescription;
 
+    public ProcessInstanceDesc() {
+        
+    }
+    
     public ProcessInstanceDesc(long id, String processId, String processName, String processVersion, 
-                                int state, String deploymentId, Date dataTimeStamp, String initiator) {
+                                int state, String deploymentId, Date dataTimeStamp, String initiator,String processInstanceDescription) {
         this.id = id;
         this.processId = processId;
         this.processName = processName;
@@ -47,13 +49,26 @@ public class ProcessInstanceDesc implements Serializable{
         this.deploymentId = deploymentId;
         this.dataTimeStamp = dataTimeStamp;
         this.initiator = initiator;
+        this.processInstanceDescription = processInstanceDescription;
     }
+    
+    public ProcessInstanceDesc(long id, String processId, String processName, String processVersion, 
+                               int state, String deploymentId, Date dataTimeStamp, String initiator) {
+       this.id = id;
+       this.processId = processId;
+       this.processName = processName;
+       this.processVersion = processVersion==null?"":processVersion;
+       this.state = state;
+       this.deploymentId = deploymentId;
+       this.dataTimeStamp = dataTimeStamp;
+       this.initiator = initiator;
+   }
     
     public String getProcessId() {
         return processId;
     }
 
-    public long getId() {
+    public Long getId() {
         return id;
     }
 
@@ -61,7 +76,7 @@ public class ProcessInstanceDesc implements Serializable{
         return processName;
     }
 
-    public int getState() {
+    public Integer getState() {
         return state;
     }
 
@@ -96,6 +111,14 @@ public class ProcessInstanceDesc implements Serializable{
 
     public void setDeploymentId(String deploymentId) {
         this.deploymentId = deploymentId;
+    }
+
+    public String getProcessInstanceDescription() {
+        return processInstanceDescription;
+    }
+    
+    public void setProcessInstanceDescription(String processInstanceDescription) {
+        this.processInstanceDescription = processInstanceDescription;
     }
 
 }

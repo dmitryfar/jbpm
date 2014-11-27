@@ -1,4 +1,4 @@
-usersgroups = [ new User('Darth Vader') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],  
+usersgroups = [ new User('Darth Vader') : [new Group( "Knights Templer" ),  new Group( "Crusaders" ),  new Group( "analyst" )],  
                 new User( 'Bobba Fet') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],     
                 new User('Jabba Hutt') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],
                 new User('Dalai Lama') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],     
@@ -19,6 +19,15 @@ usersgroups = [ new User('Darth Vader') : [new Group( "Knights Templer" ),  new 
                 new User('krisv') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],          
                 new User('john') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],
                 new User('mary') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],           
-                new User('sales-rep') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )]
+                new User('sales-rep') : [new Group( "Knights Templer" ),  new Group( "Crusaders" )],
+                new User('Wintermute') : [new Group( "AI" )],
+                new User('Neuromancer') : [new Group( "AI" )],
+                new User('Hideo') : [new Group( "Pilot" )],
+                new User('invalid') : [new Group( "invalid" )],
+                new User('Maelcum') : [new Group( "Ninja" )],
+                new User('Parzival') : [new Group( "Player" )],
+                new User('Art3mis') : [new Group( "Player" )],
+                new User('Aech') : [new Group( "Player" )],
+                new User('vampire') : [new Group( "Stake Holder" )],
               ];       
 return usersgroups;

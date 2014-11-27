@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.jbpm</groupId>
     <artifactId>jbpm-services</artifactId>
-    <version>6.1.0-SNAPSHOT</version>
+    <version>6.3.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>jbpm-executor</artifactId>
@@ -15,41 +15,43 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.drools</groupId>
+      <artifactId>drools-core</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-shared-services</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-flow</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-runtime-manager</artifactId>
+      <optional>true</optional>
     </dependency>
-    
-    <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-commons-io</artifactId>
-      <exclusions>
-        <exclusion>
-          <artifactId>log4j</artifactId>
-          <groupId>log4j</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>  
 
     <dependency>
       <groupId>org.hibernate.javax.persistence</groupId>
       <artifactId>hibernate-jpa-2.0-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.seam.transaction</groupId>
-      <artifactId>seam-transaction</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <dependency>
+      <groupId>commons-collections</groupId>
+      <artifactId>commons-collections</artifactId>
+    </dependency>
+    <dependency>
       <groupId>commons-lang</groupId>
       <artifactId>commons-lang</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jboss.spec.javax.el</groupId>
@@ -62,6 +64,20 @@
     <dependency>
       <groupId>javax.enterprise</groupId>
       <artifactId>cdi-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.kie</groupId>
+      <artifactId>kie-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.kie</groupId>
+      <artifactId>kie-internal</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
 
     <!-- test -->
@@ -91,11 +107,13 @@
       <groupId>org.hibernate</groupId>
       <artifactId>hibernate-entitymanager</artifactId>
       <scope>test</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.hibernate</groupId>
       <artifactId>hibernate-core</artifactId>
       <scope>test</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -127,15 +145,17 @@
       <groupId>org.codehaus.btm</groupId>
       <artifactId>btm</artifactId>
       <scope>test</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-kie-services</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.jboss.spec.javax.ejb</groupId>
       <artifactId>jboss-ejb-api_3.1_spec</artifactId>
-      <scope>test</scope>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 

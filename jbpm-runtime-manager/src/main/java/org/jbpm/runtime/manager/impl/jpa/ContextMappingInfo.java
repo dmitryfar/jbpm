@@ -28,21 +28,28 @@ import javax.persistence.SequenceGenerator;
 import javax.persistence.Version;
 
 /**
- * Main entity for runtime manager to keep track of what context is bound to what <code>KieSession</code>
- * it provides as well two queries to fetch required information.
+ * The main entity that helps the runtime manager keep track of which context is bound to which <code>KieSession</code>.
+ * It also provides the following two queries to fetch required information:
  * <ul>
  *  <li>FindContextMapingByContextId</li>
  *  <li>FindContextMapingByKSessionId</li>
  * </ul>
- * This entity must be included in persistence.xml when "Per Process Instance" strategy is used.
+ * This entity must be included in the persistence.xml when the "Per Process Instance" strategy is used.
  */
 @Entity
 @SequenceGenerator(name="contextMappingInfoIdSeq", sequenceName="CONTEXT_MAPPING_INFO_ID_SEQ")
 @NamedQueries(value=
     {@NamedQuery(name="FindContextMapingByContextId", 
-                query="from ContextMappingInfo where contextId = :contextId"),
+                query="from ContextMappingInfo where contextId = :contextId"
+                		+ " and ownerId = :ownerId"),
                 @NamedQuery(name="FindContextMapingByKSessionId", 
-                query="from ContextMappingInfo where ksessionId = :ksessionId")})
+                query="from ContextMappingInfo where ksessionId = :ksessionId"
+                		+ " and ownerId = :ownerId"),
+    @NamedQuery(name="FindKSessionToInit", 
+                query="select cmInfo.ksessionId from ContextMappingInfo cmInfo, "
+                		+ "ProcessInstanceInfo processInstanceInfo join processInstanceInfo.eventTypes eventTypes"
+                		+ " where eventTypes = 'timer' and cmInfo.contextId = concat(processInstanceInfo.processInstanceId, '')"
+                		+ " and cmInfo.ownerId = :ownerId")})
 public class ContextMappingInfo implements Serializable {
 
     private static final long serialVersionUID = 533985957655465840L;
@@ -59,14 +66,17 @@ public class ContextMappingInfo implements Serializable {
     private String contextId;
     @Column(name="KSESSION_ID", nullable=false)
     private Integer ksessionId;
-    
-    public ContextMappingInfo() {
+    @Column(name="OWNER_ID")
+    private String ownerId;
+
+	public ContextMappingInfo() {
         
     }
 
-    public ContextMappingInfo(String contextId, Integer ksessionId) {
+    public ContextMappingInfo(String contextId, Integer ksessionId, String ownerId) {
         this.contextId = contextId;
         this.ksessionId = ksessionId;
+        this.ownerId = ownerId;
     }
 
     public Long getMappingId() {
@@ -100,7 +110,13 @@ public class ContextMappingInfo implements Serializable {
     public void setKsessionId(Integer ksessionId) {
         this.ksessionId = ksessionId;
     }
-    
-    
+        
+    public String getOwnerId() {
+		return ownerId;
+	}
+
+	public void setOwnerId(String ownerId) {
+		this.ownerId = ownerId;
+	}
 
 }

@@ -2,7 +2,10 @@ package org.jbpm.process.workitem.rest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 import javax.ws.rs.ext.RuntimeDelegate;
@@ -11,17 +14,38 @@ import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.jaxrs.provider.JAXBElementProvider;
 import org.drools.core.process.instance.impl.WorkItemImpl;
+import org.jbpm.bpmn2.handler.WorkItemHandlerRuntimeException;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.kie.api.runtime.process.WorkItem;
 import org.kie.api.runtime.process.WorkItemHandler;
 import org.kie.api.runtime.process.WorkItemManager;
 
+@RunWith(Parameterized.class)
 public class RestWorkItemHandlerTest {
 
+    @Parameters(name="Http Client 4.3 api = {0}")
+    public static Collection<Object[]> parameters() {
+        Object[][] locking = new Object[][] { 
+                { true }, 
+                { false },
+                };
+        return Arrays.asList(locking);
+    };
+  
+    private final boolean httpClient43;
+	
     private final static String serverURL = "http://localhost:9998/test";
     private static Server server;
+    
+    public RestWorkItemHandlerTest(boolean httpClient43) {
+    	this.httpClient43 = httpClient43;
+    }
 
     @SuppressWarnings({ "rawtypes"})
     @BeforeClass
@@ -42,6 +66,11 @@ public class RestWorkItemHandlerTest {
         server.destroy();
     }
     
+    @Before
+    public void setClientApiVersion() {
+    	RESTWorkItemHandler.HTTP_CLIENT_API_43 = httpClient43;
+    }
+    
     @Test
     public void testGETOperation() {
         RESTWorkItemHandler handler = new RESTWorkItemHandler();
@@ -57,6 +86,62 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals("Hello from REST", result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
+    }
+    
+    @Test
+    public void testGETOperationWithCustomTimeout() {
+        RESTWorkItemHandler handler = new RESTWorkItemHandler();
+        
+        WorkItemImpl workItem = new WorkItemImpl();
+        workItem.setParameter( "Url", serverURL);
+        workItem.setParameter( "Method", "GET" );
+        workItem.setParameter( "ConnectTimeout", "30000" );
+        workItem.setParameter( "ReadTimeout", "25000" );
+        
+        
+        WorkItemManager manager = new TestWorkItemManager(workItem);
+        handler.executeWorkItem(workItem, manager);
+        
+        String result = (String) workItem.getResult("Result");
+        assertNotNull("result cannot be null", result);
+        assertEquals("Hello from REST", result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
+    }
+    
+    @Test
+    public void testGETOperationWithInvalidTimeout() {
+        RESTWorkItemHandler handler = new RESTWorkItemHandler();
+        
+        WorkItemImpl workItem = new WorkItemImpl();
+        workItem.setParameter( "Url", serverURL);
+        workItem.setParameter( "Method", "GET" );
+        workItem.setParameter( "ConnectTimeout", "" );
+        workItem.setParameter( "ReadTimeout", "" );
+        
+        
+        WorkItemManager manager = new TestWorkItemManager(workItem);
+        handler.executeWorkItem(workItem, manager);
+        
+        String result = (String) workItem.getResult("Result");
+        assertNotNull("result cannot be null", result);
+        assertEquals("Hello from REST", result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test
@@ -74,6 +159,12 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals("Hello from REST test", result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test
@@ -95,6 +186,12 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals(expected, result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test
@@ -112,6 +209,12 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals("Created resource with name john", result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test
@@ -133,6 +236,12 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals(expected, result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test
@@ -152,6 +261,12 @@ public class RestWorkItemHandlerTest {
         String result = (String) workItem.getResult("Result");
         assertNotNull("result cannot be null", result);
         assertEquals(expected, result);
+        int responseCode = (Integer) workItem.getResult("Status");
+        assertNotNull(responseCode);
+        assertEquals(200, responseCode);
+        String responseMsg = (String) workItem.getResult("StatusMsg");
+        assertNotNull(responseMsg);
+        assertEquals("request to endpoint " + workItem.getParameter("Url") +" successfully completed OK", responseMsg);
     }
     
     @Test(expected=IllegalArgumentException.class)
@@ -165,6 +280,29 @@ public class RestWorkItemHandlerTest {
         
         WorkItemManager manager = new TestWorkItemManager(workItem);
         handler.executeWorkItem(workItem, manager);
+    }
+    
+    @Test
+    public void testHandleErrorOnNotSuccessfulResponse() {
+        RESTWorkItemHandler handler = new RESTWorkItemHandler();
+        
+        WorkItemImpl workItem = new WorkItemImpl();
+        workItem.setParameter( "Url", serverURL+"/notexisting");
+        workItem.setParameter( "Method", "GET" );
+        workItem.setParameter("HandleResponseErrors", "true");
+        
+        
+        WorkItemManager manager = new TestWorkItemManager(workItem);
+        try {
+        	handler.executeWorkItem(workItem, manager);
+        	fail("Should throw exception as it was instructed to do so");
+        } catch (WorkItemHandlerRuntimeException ex) {
+        	
+        	RESTServiceException e = (RESTServiceException) ex.getCause().getCause();
+        	assertEquals(405, e.getStatus());
+        	assertEquals(serverURL+"/notexisting", e.getEndoint());
+        	assertEquals("", e.getResponse());
+        }
     }
     
     private class TestWorkItemManager implements WorkItemManager {

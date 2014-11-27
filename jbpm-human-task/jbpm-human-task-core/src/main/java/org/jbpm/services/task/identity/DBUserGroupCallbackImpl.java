@@ -15,8 +15,6 @@
  */
 package org.jbpm.services.task.identity;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -24,7 +22,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import javax.enterprise.inject.Alternative;
 
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
@@ -47,13 +44,11 @@ import org.slf4j.LoggerFactory;
  * </ul>
  *
  */
-
-@Alternative
-public class DBUserGroupCallbackImpl implements UserGroupCallback {
+public class DBUserGroupCallbackImpl extends AbstractUserGroupInfo implements UserGroupCallback {
 
 	private static final Logger logger = LoggerFactory.getLogger(DBUserGroupCallbackImpl.class);
     
-    protected static final String DEFAULT_PROPERTIES_NAME = "/jbpm.usergroup.callback.properties";
+    protected static final String DEFAULT_PROPERTIES_NAME = "classpath:/jbpm.usergroup.callback.properties";
     
     public static final String DS_JNDI_NAME = "db.ds.jndi.name";
     public static final String PRINCIPAL_QUERY = "db.user.query";
@@ -63,24 +58,10 @@ public class DBUserGroupCallbackImpl implements UserGroupCallback {
     private Properties config;
     private DataSource ds; 
     
-    
-    public DBUserGroupCallbackImpl() {
-        String propertiesLocation = System.getProperty("jbpm.usergroup.callback.properties");
-        
-        if (propertiesLocation == null) {
-            propertiesLocation = DEFAULT_PROPERTIES_NAME;
-        }
-        logger.debug("Callback properties will be loaded from {}", propertiesLocation);
-        InputStream in = this.getClass().getResourceAsStream(propertiesLocation);
-        if (in != null) {
-            config = new Properties();
-            try {
-                config.load(in);
-            } catch (IOException e) {
-                logger.error("Error when loading properties for DB user group callback", e);
-                config = null;
-            }
-        }
+    //no no-arg constructor to prevent cdi from auto deploy
+    public DBUserGroupCallbackImpl(boolean activate) {
+        String propertiesLocation = System.getProperty("jbpm.usergroup.callback.properties");        
+        config = readProperties(propertiesLocation, DEFAULT_PROPERTIES_NAME);
         init();
 
     }

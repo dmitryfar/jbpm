@@ -23,18 +23,19 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 
+import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.JPAAuditLogService;
 import org.jbpm.process.audit.NodeInstanceLog;
 import org.kie.internal.command.Context;
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-public class FindNodeInstancesCommand extends AbstractHistoryLogCommand<List<NodeInstanceLog>> {
+public class FindNodeInstancesCommand extends AuditCommand<List<NodeInstanceLog>> {
 
     /** generated serial version UID */
     private static final long serialVersionUID = 5374910016873481604L;
 
-    @XmlAttribute(required=true)
+    @XmlAttribute(required=true, name="process-instance-id")
     @XmlSchemaType(name="long")
     private Long processInstanceId;
     
@@ -68,11 +69,27 @@ public class FindNodeInstancesCommand extends AbstractHistoryLogCommand<List<Nod
         }
     }
     
+    public Long getProcessInstanceId() {
+        return processInstanceId;
+    }
+
+    public void setProcessInstanceId(Long processInstanceId) {
+        this.processInstanceId = processInstanceId;
+    }
+
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+
     public String toString() {
         if( nodeId == null || nodeId.isEmpty() ) { 
-            return JPAAuditLogService.class.getSimpleName() + ".findNodeInstances("+ processInstanceId + ")";
+            return AuditLogService.class.getSimpleName() + ".findNodeInstances("+ processInstanceId + ")";
         } else { 
-            return "JPAProcessInstanceDbLog.findNodeInstances("+ processInstanceId + ", " + nodeId + ")";
+            return AuditLogService.class.getSimpleName() + ".findNodeInstances("+ processInstanceId + ", " + nodeId + ")";
         }
     }
 }

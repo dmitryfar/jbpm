@@ -10,7 +10,7 @@ import org.jbpm.process.audit.JPAAuditLogService;
 import org.jbpm.process.audit.NodeInstanceLog;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.jbpm.process.audit.VariableInstanceLog;
-import org.jbpm.process.instance.impl.demo.DoNothingWorkItemHandler;
+import org.jbpm.process.instance.impl.demo.SystemOutWorkItemHandler;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.kie.api.KieBase;
@@ -47,7 +47,7 @@ public class AuditCommandsTest extends JbpmBpmn2TestCase {
         String processId = "IntermediateCatchEvent";
         KieBase kbase = createKnowledgeBase("BPMN2-IntermediateCatchEventSignal.bpmn2");
         KieSession ksession = createKnowledgeSession(kbase);
-        ksession.getWorkItemManager().registerWorkItemHandler("Human Task", new DoNothingWorkItemHandler());
+        ksession.getWorkItemManager().registerWorkItemHandler("Human Task", new SystemOutWorkItemHandler());
         ProcessInstance processInstance = ksession.startProcess(processId);
         assertTrue(processInstance.getState() == ProcessInstance.STATE_ACTIVE);
 
@@ -58,7 +58,7 @@ public class AuditCommandsTest extends JbpmBpmn2TestCase {
         List<ProcessInstanceLog> logList = (List<ProcessInstanceLog>) result;
         assertEquals( "Log list size is incorrect.", 1, logList.size() );
         ProcessInstanceLog log = logList.get(0);
-        assertEquals(log.getProcessInstanceId(), processInstance.getId());
+        assertEquals(log.getProcessInstanceId().longValue(), processInstance.getId());
         assertEquals(log.getProcessId(), processInstance.getProcessId());
         
         cmd = new FindActiveProcessInstancesCommand(processId);
@@ -68,7 +68,7 @@ public class AuditCommandsTest extends JbpmBpmn2TestCase {
         logList = (List<ProcessInstanceLog>) result;
         assertEquals( "Log list size is incorrect.", 1, logList.size() );
         log = logList.get(0);
-        assertEquals("Process instance id", log.getProcessInstanceId(), processInstance.getId());
+        assertEquals("Process instance id", log.getProcessInstanceId().longValue(), processInstance.getId());
         assertEquals("Process id", log.getProcessId(), processInstance.getProcessId());
         assertEquals("Status", log.getStatus().intValue(), ProcessInstance.STATE_ACTIVE );
         
@@ -77,7 +77,7 @@ public class AuditCommandsTest extends JbpmBpmn2TestCase {
         assertNotNull( "Command result is empty!", result );
         assertTrue( result instanceof ProcessInstanceLog );
         log = (ProcessInstanceLog) result;
-        assertEquals(log.getProcessInstanceId(), processInstance.getId());
+        assertEquals(log.getProcessInstanceId().longValue(), processInstance.getId());
         assertEquals(log.getProcessId(), processInstance.getProcessId());
         
         cmd = new ClearHistoryLogsCommand();

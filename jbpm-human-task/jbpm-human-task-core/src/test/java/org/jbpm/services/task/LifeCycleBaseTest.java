@@ -24,37 +24,81 @@ import static org.junit.Assert.fail;
 
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.jbpm.services.task.exception.PermissionDeniedException;
 import org.jbpm.services.task.impl.factories.TaskFactory;
-import org.jbpm.services.task.impl.model.ContentDataImpl;
-import org.jbpm.services.task.impl.model.GroupImpl;
-import org.jbpm.services.task.impl.model.UserImpl;
-import org.jbpm.services.task.impl.model.xml.JaxbContent;
 import org.jbpm.services.task.utils.ContentMarshallerHelper;
 import org.junit.Test;
+import org.kie.api.task.model.Comment;
 import org.kie.api.task.model.Content;
+import org.kie.api.task.model.Group;
+import org.kie.api.task.model.I18NText;
 import org.kie.api.task.model.OrganizationalEntity;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.Task;
 import org.kie.api.task.model.TaskSummary;
+import org.kie.api.task.model.User;
+import org.kie.internal.task.api.TaskModelProvider;
 import org.kie.internal.task.api.model.AccessType;
+import org.kie.internal.task.api.model.ContentData;
+import org.kie.internal.task.api.model.FaultData;
+import org.kie.internal.task.api.model.InternalComment;
+import org.kie.internal.task.api.model.InternalI18NText;
+import org.kie.internal.task.api.model.InternalOrganizationalEntity;
 import org.kie.internal.task.api.model.InternalPeopleAssignments;
+import org.kie.internal.task.api.model.InternalTask;
 import org.kie.internal.task.api.model.InternalTaskData;
 
 public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
     
     @Test
+    /*
+    * Related to BZ-1105868 
+    */
+    public void testWithNoTaskAndEmptyLists(){
+      
+      List<TaskSummary> tasksAssignedAsPotentialOwner = taskService.getTasksAssignedAsPotentialOwner("nouser", new ArrayList<String>());
+      assertTrue(tasksAssignedAsPotentialOwner.isEmpty());
+      
+      List<TaskSummary> tasksAssignedAsPotentialOwner2 = taskService.getTasksAssignedAsPotentialOwner("nouser", (List<String>)null);
+      assertTrue(tasksAssignedAsPotentialOwner2.isEmpty());
+      
+      List<TaskSummary> tasksAssignedAsPotentialOwner3 = taskService.getTasksAssignedAsPotentialOwner("", (List<String>)null);
+      assertTrue(tasksAssignedAsPotentialOwner3.isEmpty());
+      
+      List<TaskSummary> tasksAssignedAsPotentialOwner4 = taskService.getTasksAssignedAsPotentialOwner(null,(List<String>) null);
+      assertTrue(tasksAssignedAsPotentialOwner4.isEmpty());
+      
+      List<TaskSummary> tasksAssignedAsPotentialOwner5 = taskService.getTasksAssignedAsPotentialOwner("salaboy", (List<String>)null);
+      assertTrue(tasksAssignedAsPotentialOwner5.isEmpty());
+      
+      List<TaskSummary> tasks = taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup("Bobba Fet", null, null);
+      assertTrue(tasks.isEmpty());
+      
+      List<TaskSummary> tasks2 = taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup("Bobba Fet", new ArrayList<String>(), null);
+      assertTrue(tasks2.isEmpty());
+      
+      List<TaskSummary> tasks3 = taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup("Bobba Fet", new ArrayList<String>(), new ArrayList<Status>());
+      assertTrue(tasks3.isEmpty());
+      
+      List<TaskSummary> tasks4 = taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup("admin", new ArrayList<String>(), new ArrayList<Status>());
+      assertTrue(tasks4.isEmpty());
+              
+      
+    }
+  
+    @Test
     public void testNewTaskWithNoPotentialOwners() {
 
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = TaskFactory.evalTask(new StringReader(str));
@@ -72,12 +116,10 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
     @Test
     public void testNewTaskWithSinglePotentialOwner() {
         
-        
-
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet')  ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = TaskFactory.evalTask(new StringReader(str));
@@ -86,20 +128,23 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         long taskId = task.getId();
 
         // Task should be assigned to the single potential owner and state set to Reserved
-
-
         Task task1 = taskService.getTaskById(taskId);
         assertEquals(Status.Reserved, task1.getTaskData().getStatus());
-        assertEquals("Bobba Fet", task1.getTaskData().getActualOwner().getId());
+        String potOwner = "Bobba Fet"; 
+        assertEquals(potOwner, task1.getTaskData().getActualOwner().getId());
+        
+        taskService.getTasksAssignedAsPotentialOwner(potOwner, "en-UK");
     }
+    
+    
 
     @Test
     public void testNewTaskWithContent() {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
-        ContentDataImpl data = ContentMarshallerHelper.marshal("content", null);
+        ContentData data = ContentMarshallerHelper.marshal("content", null);
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
         taskService.addTask(task, data);
@@ -127,13 +172,13 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";                        
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
             
         Map<String, Object> variablesMap = new HashMap<String, Object>();
         variablesMap.put("key1", "value1");
         variablesMap.put("key2", null);
         variablesMap.put("key3", "value3");
-        ContentDataImpl data = ContentMarshallerHelper.marshal(variablesMap, null);
+        ContentData data = ContentMarshallerHelper.marshal(variablesMap, null);
         
         Task task = ( Task )  TaskFactory.evalTask( new StringReader( str ));
         taskService.addTask( task, data );
@@ -181,13 +226,13 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";                        
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
             
         Map<String, Object> variablesMap = new HashMap<String, Object>();
         variablesMap.put("key1", "value1");
         variablesMap.put("key2", null);
         variablesMap.put("key3", "value3");
-        ContentDataImpl data = ContentMarshallerHelper.marshal(variablesMap, null);
+        ContentData data = ContentMarshallerHelper.marshal(variablesMap, null);
         
         Task task = ( Task )  TaskFactory.evalTask( new StringReader( str ));
         taskService.addTask( task, data );
@@ -262,14 +307,14 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
     public void testNewTaskWithLargeContent() {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
         String largeContent = "";
         for (int i = 0; i < 1000; i++) {
             largeContent += i + "xxxxxxxxx";
         }
 
-        ContentDataImpl data = ContentMarshallerHelper.marshal(largeContent, null);
+        ContentData data = ContentMarshallerHelper.marshal(largeContent, null);
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
         taskService.addTask(task, data);
@@ -298,7 +343,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'),new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -327,7 +372,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new Group('Knights Templer' )], businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -356,17 +401,17 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('salaboy' )], businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
         
         // One potential owner, should go straight to state Reserved
         String str2 = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str2 += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('salaboy')], businessAdministrators = [ new User('Administrator') ], }),";
-        str2 += "names = [ new I18NText( 'en-UK', 'This is my second task name')] })";
+        str2 += "name = 'This is my second task name' })";
 
          // One potential owner, should go straight to state Reserved
         String str3 = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str3 += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new Group('Crusaders'), new Group('Knights Templer')], businessAdministrators = [ new User('Administrator') ], }),";
-        str3 += "names = [ new I18NText( 'en-UK', 'This is my third task name')] })";
+        str3 += "name = 'This is my third task name' })";
         
         
         List<String> groupIds = new ArrayList<String>();
@@ -395,12 +440,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         Task task4 = (Task) TaskFactory.evalTask(new StringReader(str3));
         taskService.addTask(task4, new HashMap<String, Object>());
         
-        List<TaskSummary> tasksAssignedByGroups = taskService.getTasksAssignedByGroups(groupIds, "en-UK");
+        List<TaskSummary> tasksAssignedByGroups = taskService.getTasksAssignedByGroups(groupIds);
         assertEquals(1, tasksAssignedByGroups.size());
 
         // A Task with multiple potential owners moves to "Ready" state until someone claims it.
 
-          List<TaskSummary> allTasks = taskService.getTasksAssignedByGroups(groupIds, "en-UK");
+          List<TaskSummary> allTasks = taskService.getTasksAssignedByGroups(groupIds);
         assertEquals(1, allTasks.size());
         List<TaskSummary> personalTasks = taskService.getTasksOwnedByStatus("salaboy", statuses, "en-UK");
         assertEquals(2, personalTasks.size());
@@ -415,7 +460,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         taskService.forward(taskId, "salaboy", "Crusaders");
 
         
-        allTasks = taskService.getTasksAssignedByGroups(groupIds, "en-UK");
+        allTasks = taskService.getTasksAssignedByGroups(groupIds);
         assertEquals(2, allTasks.size());
         personalTasks = taskService.getTasksOwnedByStatus("salaboy", statuses, "en-UK");
         assertEquals(1, personalTasks.size());
@@ -426,12 +471,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         assertEquals(Status.Ready, task2.getTaskData().getStatus());
         assertNull(task2.getTaskData().getActualOwner());
         assertEquals(1, task2.getPeopleAssignments().getPotentialOwners().size());
-        List<TaskSummary> tasksAssignedByGroup = taskService.getTasksAssignedByGroup("Crusaders", "en-UK");
+        List<TaskSummary> tasksAssignedByGroup = taskService.getTasksAssignedByGroup("Crusaders");
         
         assertEquals(2, tasksAssignedByGroup.size());
        
         
-        tasksAssignedByGroups = taskService.getTasksAssignedByGroups(groupIds, "en-UK");
+        tasksAssignedByGroups = taskService.getTasksAssignedByGroups(groupIds);
         assertEquals(2, tasksAssignedByGroups.size());
         
         taskService.claim(taskId, "salaboy");
@@ -444,7 +489,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         List<TaskSummary> tasksOwned = taskService.getTasksOwned("salaboy", "en-UK");
         assertEquals(2, tasksOwned.size());
   
-        allTasks = taskService.getTasksAssignedByGroups(groupIds, "en-UK");
+        allTasks = taskService.getTasksAssignedByGroups(groupIds);
         assertEquals(1, allTasks.size());
         personalTasks = taskService.getTasksOwnedByStatus("salaboy", statuses, "en-UK");
         assertEquals(2, personalTasks.size());
@@ -460,7 +505,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -488,7 +533,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name'})";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -525,7 +570,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -558,7 +603,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -596,7 +641,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -628,7 +673,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -672,7 +717,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -709,7 +754,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name'})";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -744,7 +789,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -788,7 +833,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name'})";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -823,7 +868,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -856,7 +901,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -897,7 +942,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -938,7 +983,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -984,7 +1029,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1022,7 +1067,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = true} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1045,7 +1090,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = true} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1075,7 +1120,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1089,8 +1134,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task2 = taskService.getTaskById(taskId);
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Tony Stark")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Tony Stark");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
         assertEquals("Tony Stark", task2.getTaskData().getActualOwner().getId());
         // this was checking for ready, but it should be reserved.. it was an old bug
         assertEquals(Status.Reserved, task2.getTaskData().getStatus());
@@ -1103,7 +1152,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1128,8 +1177,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task2 = taskService.getTaskById(taskId);
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Tony Stark")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Tony Stark");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
         assertEquals("Tony Stark", task2.getTaskData().getActualOwner().getId());
         assertEquals(Status.Reserved, task2.getTaskData().getStatus());
     }
@@ -1141,7 +1194,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1168,8 +1221,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         assertNotNull("Should get permissed denied exception", denied);
 
         Task task2 = taskService.getTaskById(taskId);
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Tony Stark")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Tony Stark");
+        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(user));
         assertEquals("Darth Vader", task2.getTaskData().getActualOwner().getId());
         assertEquals(Status.Reserved, task2.getTaskData().getStatus());
     }
@@ -1180,7 +1237,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1207,7 +1264,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1232,8 +1289,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task2 = taskService.getTaskById(taskId);
-        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Tony Stark")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Tony Stark");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
         assertNull(task2.getTaskData().getActualOwner());
         assertEquals(Status.Ready, task2.getTaskData().getStatus());
     }
@@ -1245,7 +1306,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1278,8 +1339,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task2 = taskService.getTaskById(taskId);
-        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Tony Stark")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertTrue(task2.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Tony Stark");
+        assertFalse(task2.getPeopleAssignments().getPotentialOwners().contains(user));
         assertEquals("Darth Vader", task2.getTaskData().getActualOwner().getId());
         assertEquals(Status.Reserved, task2.getTaskData().getStatus());
     }
@@ -1291,7 +1356,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1327,7 +1392,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1369,7 +1434,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1391,6 +1456,13 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         params.put("content", "content");
         taskService.complete(taskId, "Darth Vader", params);
 
+        List<Content> allContent = taskService.getAllContentByTaskId(taskId);
+        assertNotNull(allContent);
+        assertEquals(3, allContent.size());
+        // only input(0) and output(1) is present
+        assertNotNull(allContent.get(0));
+        assertNotNull(allContent.get(1));
+        assertNull(allContent.get(2));
 
         Task task2 = taskService.getTaskById(taskId);
         assertEquals(AccessType.Inline, ((InternalTaskData) task2.getTaskData()).getOutputAccessType());
@@ -1403,6 +1475,22 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         Content content = taskService.getContentById(contentId);
         Map<String, Object> unmarshalledObject = (Map<String, Object>) ContentMarshallerHelper.unmarshall(content.getContent(), null);
         assertEquals("content", unmarshalledObject.get("content"));
+        
+        // update content
+        params.put("content", "updated content");
+	    taskService.setOutput(taskId, "Darth Vader", params);
+	    
+	    task = taskService.getTaskById(taskId);
+	    contentId = task.getTaskData().getOutputContentId();
+	    
+	    content = taskService.getContentById(contentId);
+	    String updated = new String(content.getContent());
+	    unmarshalledObject = (Map<String, Object>) ContentMarshallerHelper.unmarshall(content.getContent(), null);
+        assertEquals("updated content", unmarshalledObject.get("content"));
+        
+        taskService.deleteOutput(taskId, "Darth Vader");
+        content = taskService.getContentById(contentId);
+        assertNull(content);
     }
 
     @Test
@@ -1412,7 +1500,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1455,7 +1543,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1490,7 +1578,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1534,7 +1622,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // One potential owner, should go straight to state Reserved
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator') ],}),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1550,18 +1638,20 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         assertEquals(Status.InProgress, task1.getTaskData().getStatus());
         assertEquals("Darth Vader", task1.getTaskData().getActualOwner().getId());
 
-//        FaultData data = new FaultData();
-//        data.setAccessType(AccessType.Inline);
-//        data.setType("type");
-//        data.setFaultName("faultName");
-//        data.setContent("content".getBytes());
         Map<String, Object> faultData = new HashMap<String, Object>();
         faultData.put("faultType", "type");
         faultData.put("faultName", "faultName");
         faultData.put("content", "content");
 
         taskService.fail(taskId, "Darth Vader", faultData);
-
+        
+        List<Content> allContent = taskService.getAllContentByTaskId(taskId);
+        assertNotNull(allContent);
+        assertEquals(3, allContent.size());
+        // only input(0) and fault(2) is present
+        assertNotNull(allContent.get(0));
+        assertNull(allContent.get(1));
+        assertNotNull(allContent.get(2));
 
         Task task2 = taskService.getTaskById(taskId);
         assertEquals(Status.Failed, task2.getTaskData().getStatus());
@@ -1577,6 +1667,27 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         Map<String, Object> unmarshalledContent = (Map<String, Object>) ContentMarshallerHelper.unmarshall(content.getContent(), null);
         assertEquals("content", unmarshalledContent.get("content"));
         xmlRoundTripContent(content);
+        
+        // update fault
+	    FaultData data = TaskModelProvider.getFactory().newFaultData();
+	    data.setAccessType(AccessType.Inline);
+	    data.setType("type");
+	    data.setFaultName("faultName");
+	    data.setContent("updated content".getBytes());
+	    
+	    taskService.setFault(taskId, "Darth Vader", data);
+	    
+	    task = taskService.getTaskById(taskId);
+	    contentId = task.getTaskData().getFaultContentId();
+	    
+	    content = taskService.getContentById(contentId);
+	    String updated = new String(content.getContent());
+	    assertEquals("updated content", updated);
+        
+	    // delete fault
+        taskService.deleteFault(taskId, "Darth Vader");
+        content = taskService.getContentById(contentId);
+        assertNull(content);
     }
 //    
 //    /**
@@ -1631,14 +1742,16 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { status = Status.Ready } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ],";
         str += "recipients = [new User('Bobba Fet') ] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str), null);
         // We need to add the Admin if we don't initialize the task
         if (task.getPeopleAssignments() != null && task.getPeopleAssignments().getBusinessAdministrators() != null) {
             List<OrganizationalEntity> businessAdmins = new ArrayList<OrganizationalEntity>();
-            businessAdmins.add(new UserImpl("Administrator"));
+            User user = TaskModelProvider.getFactory().newUser();
+            ((InternalOrganizationalEntity) user).setId("Administrator");
+            businessAdmins.add(user);
             businessAdmins.addAll(task.getPeopleAssignments().getBusinessAdministrators());
             ((InternalPeopleAssignments) task.getPeopleAssignments()).setBusinessAdministrators(businessAdmins);
         }
@@ -1649,7 +1762,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         // Do nominate and fail due to Ready status
 
 
-        List<TaskSummary> myRecipientTasks = taskService.getTasksAssignedAsRecipient("Jabba Hutt", "en-UK");
+        List<TaskSummary> myRecipientTasks = taskService.getTasksAssignedAsRecipient("Jabba Hutt");
 
         assertNotNull(myRecipientTasks);
         assertEquals(0, myRecipientTasks.size());
@@ -1672,7 +1785,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task1 = taskService.getTaskById(taskId);
-        assertTrue(((InternalPeopleAssignments) task1.getPeopleAssignments()).getRecipients().contains(new UserImpl("Bobba Fet")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Bobba Fet");
+        assertTrue(((InternalPeopleAssignments) task1.getPeopleAssignments()).getRecipients().contains(user));
     }
 
     /**
@@ -1688,7 +1803,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { status = Status.Ready } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { businessAdministrators = [ new User('Administrator') ] ,";
         str += " potentialOwners = [ new User('Darth Vader'), new User('Bobba Fet') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str), null);
 
@@ -1700,7 +1815,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         try {
             List<OrganizationalEntity> potentialOwners = new ArrayList<OrganizationalEntity>();
-            potentialOwners.add(new UserImpl("Bobba Fet"));
+            User user = TaskModelProvider.getFactory().newUser();
+            ((InternalOrganizationalEntity) user).setId("Bobba Fet");
+            potentialOwners.add(user);
             taskService.nominate(taskId, "Darth Vader", potentialOwners);
 
             fail("Shouldn't be successful");
@@ -1713,8 +1830,12 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         //shouldn't affect the assignments
 
         Task task1 = taskService.getTaskById(taskId);
-        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Darth Vader")));
-        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(new UserImpl("Bobba Fet")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Darth Vader");
+        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(user));
+        user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Bobba Fet");
+        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(user));
     }
 
     @Test
@@ -1723,7 +1844,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { businessAdministrators = [ new User('Bobba Fet') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1734,7 +1855,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         try {
             List<OrganizationalEntity> potentialOwners = new ArrayList<OrganizationalEntity>(1);
-            potentialOwners.add(new UserImpl("Jabba Hutt"));
+            User user = TaskModelProvider.getFactory().newUser();
+            ((InternalOrganizationalEntity) user).setId("Jabba Hutt");
+            potentialOwners.add(user);
             taskService.nominate(taskId, "Darth Vader", potentialOwners);
 
             fail("Shouldn't be successful");
@@ -1747,7 +1870,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         //shouldn't affect the assignments
 
         Task task1 = taskService.getTaskById(taskId);
-        assertTrue(task1.getPeopleAssignments().getBusinessAdministrators().contains(new UserImpl("Bobba Fet")));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Bobba Fet");
+        assertTrue(task1.getPeopleAssignments().getBusinessAdministrators().contains(user));
         assertEquals(task1.getTaskData().getStatus(), Status.Created);
     }
 
@@ -1757,7 +1882,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { businessAdministrators = [ new User('Darth Vader'), new User('Bobba Fet') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1767,7 +1892,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         List<OrganizationalEntity> potentialOwners = new ArrayList<OrganizationalEntity>(1);
-        potentialOwners.add(new UserImpl("Jabba Hutt"));
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Jabba Hutt");
+        potentialOwners.add(user);
         taskService.nominate(taskId, "Darth Vader", potentialOwners);
 
 
@@ -1785,7 +1912,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { businessAdministrators = [ new User('Darth Vader'), new User('Bobba Fet') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name'})";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1795,7 +1922,9 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         List<OrganizationalEntity> potentialGroups = new ArrayList<OrganizationalEntity>();
-        potentialGroups.add(new GroupImpl( "Knights Templer" ));
+        Group group = TaskModelProvider.getFactory().newGroup();
+        ((InternalOrganizationalEntity) group).setId("Knights Templer");
+        potentialGroups.add(group);
         taskService.nominate(taskId, "Darth Vader", potentialGroups);
 
 
@@ -1803,7 +1932,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
 
         Task task1 = taskService.getTaskById(taskId);
-        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(new GroupImpl("Knights Templer")));
+        assertTrue(task1.getPeopleAssignments().getPotentialOwners().contains(group));
         assertEquals(task1.getTaskData().getStatus(), Status.Ready);
     }
 
@@ -1814,7 +1943,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { ";
         str += "businessAdministrators = [ new User('Darth Vader') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1841,7 +1970,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [ new User('Darth Vader'), new User('Bobba Fet') ], ";
         str += "businessAdministrators = [ new User('Jabba Hutt') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name'})";
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
         taskService.addTask(task, new HashMap<String, Object>());
@@ -1868,14 +1997,16 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { status = Status.Ready } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [ new User('Darth Vader'), new User('Bobba Fet') ], ";
         str += "businessAdministrators = [ new User('Jabba Hutt') ] } ),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str), null);
         // We need to add the Admin if we don't initialize the task
         if (task.getPeopleAssignments() != null && task.getPeopleAssignments().getBusinessAdministrators() != null) {
             List<OrganizationalEntity> businessAdmins = new ArrayList<OrganizationalEntity>();
-            businessAdmins.add(new UserImpl("Administrator"));
+            User user = TaskModelProvider.getFactory().newUser();
+            ((InternalOrganizationalEntity) user).setId("Administrator");
+            businessAdmins.add(user);
             businessAdmins.addAll(task.getPeopleAssignments().getBusinessAdministrators());
             ((InternalPeopleAssignments) task.getPeopleAssignments()).setBusinessAdministrators(businessAdmins);
         }
@@ -1903,7 +2034,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1926,7 +2057,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1949,7 +2080,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -1975,7 +2106,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet') ], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -2001,7 +2132,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -2026,7 +2157,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { skipable = false} ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet')], businessAdministrators = [ new User('Administrator')] }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
 
         Task task = (Task) TaskFactory.evalTask(new StringReader(str));
@@ -2053,7 +2184,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('salaboy'), new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name = 'This is my task name' })";
 
         // Create a local instance of the TaskService
 
@@ -2103,7 +2234,7 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
 
         String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
         str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('salaboy'), new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";
-        str += "names = [ new I18NText( 'en-UK', 'This is my task name')] })";
+        str += "name =  'This is my task name' })";
 
         // Deploy the Task Definition to the Task Component
         taskService.addTask((Task) TaskFactory.evalTask(new StringReader(str)), new HashMap<String, Object>());
@@ -2118,5 +2249,186 @@ public abstract class LifeCycleBaseTest extends HumanTaskServicesBaseTest {
         List<TaskSummary> salaboyTasks = taskService.getTasksAssignedAsPotentialOwnerByStatus("salaboy", status, "en-UK");
         assertEquals(0, salaboyTasks.size());
 
+    }
+    
+    @Test
+    public void testClaimNextAvailableWithGroups() {
+        
+        // Create a local instance of the TaskService
+
+        String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
+        str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('salaboy'), new User('Bobba Fet') ],businessAdministrators = [ new User('Administrator') ], }),";
+        str += "name =  'This is my task name' })";
+
+        // Deploy the Task Definition to the Task Component
+        taskService.addTask((Task) TaskFactory.evalTask(new StringReader(str)), new HashMap<String, Object>());
+
+        // we don't need to query for our task to see what we will claim, just claim the next one available for us
+        List<String> groups = new ArrayList<String>();
+        groups.add("HR");
+        taskService.claimNextAvailable("Bobba Fet", groups);
+
+
+        List<Status> status = new ArrayList<Status>();
+        status.add(Status.Ready);
+        List<TaskSummary> salaboyTasks = taskService.getTasksAssignedAsPotentialOwnerByStatus("salaboy", status, "en-UK");
+        assertEquals(0, salaboyTasks.size());
+
+    }
+    
+    @Test
+    public void testCompleteWithRestrictedGroups() {
+        
+
+        // One potential owner, should go straight to state Reserved
+        String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
+        str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new Group('analyst'), new Group('Crusaders') ],businessAdministrators = [ new User('Administrator') ], }),";
+        str += "name =  'This is my task name' })";
+
+
+        Task task = (Task) TaskFactory.evalTask(new StringReader(str));
+        taskService.addTask(task, new HashMap<String, Object>());
+
+        long taskId = task.getId();
+        
+        List<OrganizationalEntity> potOwners = task.getPeopleAssignments().getPotentialOwners();
+        assertNotNull(potOwners);
+        assertEquals(1, potOwners.size());
+        assertEquals("Crusaders", potOwners.get(0).getId());
+
+        // Go straight from Ready to Inprogress
+
+        taskService.start(taskId, "Darth Vader");
+
+
+        Task task1 = taskService.getTaskById(taskId);
+        assertEquals(Status.InProgress, task1.getTaskData().getStatus());
+        assertEquals("Darth Vader", task1.getTaskData().getActualOwner().getId());
+
+        // Check is Complete
+
+        taskService.complete(taskId, "Darth Vader", null);
+
+
+
+
+        Task task2 = taskService.getTaskById(taskId);
+        assertEquals(Status.Completed, task2.getTaskData().getStatus());
+        assertEquals("Darth Vader", task2.getTaskData().getActualOwner().getId());
+    }
+    
+    @Test
+    public void testInvalidTask() {
+    	try {
+    		taskService.claim(-1, "Darth Vader");
+    	} catch (PermissionDeniedException e) {
+    		if ("Task '-1' not found".equals(e.getMessage())) {
+    			return;
+    		} else {
+    			throw e;
+    		}
+    	}
+    }
+    
+    @Test
+    public void testCompleteWithComments() {       
+        // One potential owner, should go straight to state Reserved
+        String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
+        str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
+        str += "name = 'This is my task name' })";
+
+        Task task = (Task) TaskFactory.evalTask(new StringReader(str));
+        taskService.addTask(task, new HashMap<String, Object>());
+
+        long taskId = task.getId();
+        
+        List<Comment> comments = taskService.getAllCommentsByTaskId(taskId);
+        assertNotNull(comments);
+        assertEquals(0, comments.size());
+        
+        User user = TaskModelProvider.getFactory().newUser();
+        ((InternalOrganizationalEntity) user).setId("Bobba Fet");
+        
+        Comment comment = TaskModelProvider.getFactory().newComment();
+        ((InternalComment)comment).setAddedAt(new Date());
+        ((InternalComment)comment).setAddedBy(user);
+        ((InternalComment)comment).setText("Simple test comment");
+        taskService.addComment(taskId, comment);
+        
+        comments = taskService.getAllCommentsByTaskId(taskId);
+        assertNotNull(comments);
+        assertEquals(1, comments.size());
+
+        // Go straight from Ready to Inprogress
+        taskService.start(taskId, "Darth Vader");
+
+        Task task1 = taskService.getTaskById(taskId);
+        assertEquals(Status.InProgress, task1.getTaskData().getStatus());
+        assertEquals("Darth Vader", task1.getTaskData().getActualOwner().getId());
+
+        // Check is Complete
+        taskService.complete(taskId, "Darth Vader", null);
+
+        Task task2 = taskService.getTaskById(taskId);
+        assertEquals(Status.Completed, task2.getTaskData().getStatus());
+        assertEquals("Darth Vader", task2.getTaskData().getActualOwner().getId());
+    }
+    
+    @Test
+    public void testNewTaskWithSingleInvalidPotentialOwner() {
+        
+        // One potential owner, should go straight to state Reserved
+        String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
+        str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new Group('invalid')  ],businessAdministrators = [ new User('Administrator') ], }),";
+        str += "name = 'This is my task name' })";
+
+
+        Task task = TaskFactory.evalTask(new StringReader(str));
+
+        taskService.addTask(task, new HashMap<String, Object>());
+        try {
+	        String potOwner = "invalid";             
+	        taskService.getTasksAssignedAsPotentialOwner(potOwner, "en-UK");
+	        fail("Should fail due to same id for group and user");
+        } catch (RuntimeException e) {
+        	assertTrue(e.getMessage().endsWith("please check that there is no group and user with same id"));
+        }
+    }
+
+    @Test
+    public void testLongDescription() {
+        // BZ-1107473
+        String str = "(with (new Task()) { priority = 55, taskData = (with( new TaskData()) { } ), ";
+        str += "peopleAssignments = (with ( new PeopleAssignments() ) { potentialOwners = [new User('Bobba Fet'), new User('Darth Vader') ],businessAdministrators = [ new User('Administrator') ], }),";
+        str += "name = 'This is my task name' })";
+
+        Task task = (Task) TaskFactory.evalTask(new StringReader(str));
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            sb.append("a");
+        }
+        String comment = sb.toString();
+
+        // NOTE: AbstractHTWorkItemHandler stores "Comment" parameter as 'Description'
+        List<I18NText> descriptions = new ArrayList<I18NText>();
+        I18NText descText = TaskModelProvider.getFactory().newI18NText();
+        ((InternalI18NText) descText).setLanguage("en-UK");
+        ((InternalI18NText) descText).setText(comment);
+        descriptions.add(descText);
+        ((InternalTask)task).setDescriptions(descriptions);
+
+        taskService.addTask(task, new HashMap<String, Object>()); // Fails if shortText is longer than 255
+
+        long taskId = task.getId();
+
+        Task resultTask = taskService.getTaskById(taskId);
+        List<I18NText> resultDescriptions = resultTask.getDescriptions();
+
+        InternalI18NText resultDescription = (InternalI18NText)resultDescriptions.get(0);
+
+        assertEquals(1000, resultDescription.getText().length()); // This is text
+
+        // 6.1.x no longer uses shortText in API and Taskorm.xml so no assert.
     }
 }

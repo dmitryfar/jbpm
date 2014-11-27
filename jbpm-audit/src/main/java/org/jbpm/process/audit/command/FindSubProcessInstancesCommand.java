@@ -23,18 +23,18 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 
-import org.jbpm.process.audit.JPAAuditLogService;
+import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.kie.internal.command.Context;
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-public class FindSubProcessInstancesCommand extends AbstractHistoryLogCommand<List<ProcessInstanceLog>> {
+public class FindSubProcessInstancesCommand extends AuditCommand<List<ProcessInstanceLog>> {
 
     /** generated serial version UID */
     private static final long serialVersionUID = 7334860936916050668L;
 
-    @XmlAttribute(required=true)
+    @XmlAttribute(required=true, name="process-instance-id")
     @XmlSchemaType(name="long")
     private Long processInstanceId;
     
@@ -51,7 +51,15 @@ public class FindSubProcessInstancesCommand extends AbstractHistoryLogCommand<Li
         return this.auditLogService.findSubProcessInstances(processInstanceId);
     }
     
+    public Long getProcessInstanceId() {
+        return processInstanceId;
+    }
+
+    public void setProcessInstanceId(Long processInstanceId) {
+        this.processInstanceId = processInstanceId;
+    }
+
     public String toString() {
-        return JPAAuditLogService.class.getSimpleName() + ".findSubProcessInstances("+ processInstanceId + ")";
+        return AuditLogService.class.getSimpleName() + ".findSubProcessInstances("+ processInstanceId + ")";
     }
 }

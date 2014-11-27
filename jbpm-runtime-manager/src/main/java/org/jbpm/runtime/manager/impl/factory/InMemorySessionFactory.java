@@ -20,14 +20,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.kie.api.KieBase;
 import org.kie.api.runtime.KieSession;
-import org.kie.internal.runtime.manager.RuntimeEnvironment;
+import org.kie.api.runtime.manager.RuntimeEnvironment;
 import org.kie.internal.runtime.manager.SessionFactory;
 import org.kie.internal.runtime.manager.SessionNotFoundException;
 
 /**
- * SessionFactory implementation backed with in memory store of used sessions. Does not preserve the state
- * between server restarts or even <code>RuntimeManager</code> close. For more permanent store 
- * <code>JPASessionFactory</code> should be used
+ * SessionFactory implementation backed with an in-memory store of used sessions. This does not preserve state
+ * between server restarts or even <code>RuntimeManager</code> close. For that, the more permanent store 
+ * <code>JPASessionFactory</code> should be used.
  *
  * @see JPASessionFactory
  */

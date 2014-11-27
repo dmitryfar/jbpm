@@ -26,9 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-import org.drools.core.impl.InternalKnowledgeBase;
 import org.drools.core.process.core.datatype.impl.type.ObjectDataType;
-import org.drools.core.reteoo.ReteooRuleBase;
 import org.jbpm.process.core.ContextContainer;
 import org.jbpm.process.core.context.exception.CompensationHandler;
 import org.jbpm.process.core.context.exception.CompensationScope;
@@ -58,17 +56,15 @@ import org.kie.api.definition.process.NodeContainer;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.process.ProcessContext;
 import org.kie.api.runtime.process.ProcessInstance;
-import org.kie.internal.KnowledgeBase;
-import org.kie.internal.KnowledgeBaseFactory;
-import org.kie.internal.runtime.StatefulKnowledgeSession;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class CompensationTest extends AbstractBaseTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(CompensationTest.class);
-
-    StatefulKnowledgeSession ksession; 
+    public void addLogger() { 
+        logger = LoggerFactory.getLogger(this.getClass());
+    }
+    
+    private KieSession ksession; 
     
     @After
     public void cleanUp() { 
@@ -105,16 +101,9 @@ public class CompensationTest extends AbstractBaseTest {
         CompensationHandler handler = new CompensationHandler();
         handler.setNode(node);
         scope.setExceptionHandler(compensationHandlerId, handler);
+        
+        node.setMetaData("isForCompensation", Boolean.TRUE);
     }
-
-    private StatefulKnowledgeSession createKieSession(RuleFlowProcess process) {
-        KnowledgeBase kbase = KnowledgeBaseFactory.newKnowledgeBase();
-        ((ReteooRuleBase) ((InternalKnowledgeBase) kbase).getRuleBase()).addProcess(process);
-        StatefulKnowledgeSession ksession = kbase.newStatefulKnowledgeSession();
-
-        return ksession;
-    }
-
 
     private Node findNode(RuleFlowProcess process, String nodeName) { 
         Node found = null;
@@ -191,7 +180,7 @@ public class CompensationTest extends AbstractBaseTest {
         // run process
         ksession = createKieSession(process);
         
-        String compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX + processId;
+        String compensationEvent = CompensationScope.IMPLICIT_COMPENSATION_PREFIX + processId;
 
         runCompensationBoundaryEventGeneralTest(ksession, process, processId, workItemNames, eventList, compensationEvent);
     }
@@ -323,7 +312,7 @@ public class CompensationTest extends AbstractBaseTest {
         List<String> eventList = new ArrayList<String>();
         RuleFlowProcess process = createCompensationEventSubProcessProcess(processId, workItemNames, eventList);
 
-        String compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX + process.getId(); 
+        String compensationEvent = CompensationScope.IMPLICIT_COMPENSATION_PREFIX + process.getId(); 
         
         // run process
         ksession = createKieSession(process);
@@ -449,7 +438,7 @@ public class CompensationTest extends AbstractBaseTest {
         RuleFlowProcess process = createNestedCompensationEventSubProcessProcess(processId, workItemNames, eventList);
 
         Node toCompensateNode = findNode(process, "sub0");
-        String compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX + toCompensateNode.getMetaData().get("UniqueId");
+        String compensationEvent = CompensationScope.IMPLICIT_COMPENSATION_PREFIX + toCompensateNode.getMetaData().get("UniqueId");
 
         ksession = createKieSession(process);
         
@@ -581,7 +570,7 @@ public class CompensationTest extends AbstractBaseTest {
         ksession = createKieSession(process);
         
         Node toCompensateNode = findNode(process, "sub2");
-        String compensationEvent = CompensationScope.GENERAL_COMPENSATION_PREFIX 
+        String compensationEvent = CompensationScope.IMPLICIT_COMPENSATION_PREFIX 
                 + (String) toCompensateNode.getMetaData().get("UniqueId");
 
         runCompensationBoundaryEventGeneralTest(ksession, process, processId, workItemNames, eventList, compensationEvent);

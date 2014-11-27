@@ -19,37 +19,35 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.jbpm.kie.services.impl.model.ProcessDesc;
-import org.jbpm.services.task.impl.model.TaskDefImpl;
 
-/**
- *
- * @author salaboy
- */
+import org.jbpm.kie.services.impl.model.ProcessAssetDesc;
+import org.jbpm.services.api.model.UserTaskDefinition;
+
 public class ProcessDescRepoHelper {
 
-    private ProcessDesc process;
-    private Map<String, TaskDefImpl> tasks = new HashMap<String, TaskDefImpl>();
+    private ProcessAssetDesc process;
+    private Map<String, UserTaskDefinition> tasks = new HashMap<String, UserTaskDefinition>();
     private Map<String, Map<String, String>> taskInputMappings = new HashMap<String, Map<String, String>>();
     private Map<String, Map<String, String>> taskOutputMappings = new HashMap<String, Map<String, String>>();
     private Map<String, String> inputs = new HashMap<String, String>();
-    private Map<String, String> taskAssignments = new HashMap<String, String>();
+    private Map<String, Collection<String>> taskAssignments = new HashMap<String, Collection<String>>();
     private Collection<String> reusableSubProcesses = new ArrayList<String>();
     private Map<String, String> itemDefinitions = new HashMap<String, String>();
+    private Map<String, String> serviceTasks = new HashMap<String, String>();
     
     public ProcessDescRepoHelper() {
     }
 
-    public void setProcess(ProcessDesc process) {
+    public void setProcess(ProcessAssetDesc process) {
         this.process = process;
     }
 
 
-    public ProcessDesc getProcess() {
+    public ProcessAssetDesc getProcess() {
         return process;
     }
 
-    public Map<String, TaskDefImpl> getTasks() {
+    public Map<String, UserTaskDefinition> getTasks() {
         return tasks;
     }
 
@@ -65,7 +63,7 @@ public class ProcessDescRepoHelper {
         return inputs;
     }
 
-    public Map<String, String> getTaskAssignments() {
+    public Map<String, Collection<String>> getTaskAssignments() {
         return taskAssignments;
     }
 
@@ -76,6 +74,16 @@ public class ProcessDescRepoHelper {
     public void setItemDefinitions(Map<String, String> itemDefinitions) {
         this.itemDefinitions = itemDefinitions;
     }
+
+    public Map<String, String> getServiceTasks() {
+        return serviceTasks;
+    }
+
+    public void setServiceTasks(Map<String, String> serviceTasks) {
+        this.serviceTasks = serviceTasks;
+    }
+    
+    
     
     public void clear(){
         process = null;
@@ -86,6 +94,7 @@ public class ProcessDescRepoHelper {
         taskAssignments.clear();
         reusableSubProcesses.clear();
         itemDefinitions.clear();
+        serviceTasks.clear();
     }
 
     public Collection<String> getReusableSubProcesses() {

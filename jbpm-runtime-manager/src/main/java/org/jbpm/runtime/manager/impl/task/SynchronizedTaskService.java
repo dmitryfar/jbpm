@@ -19,13 +19,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import javax.enterprise.event.Event;
-
 import org.drools.core.command.impl.CommandBasedStatefulKnowledgeSession;
 import org.drools.persistence.SingleSessionCommandService;
-import org.jbpm.shared.services.impl.events.JbpmServicesEventListener;
 import org.kie.api.command.Command;
 import org.kie.api.runtime.KieSession;
+import org.kie.api.task.TaskLifeCycleEventListener;
 import org.kie.api.task.model.Attachment;
 import org.kie.api.task.model.Comment;
 import org.kie.api.task.model.Content;
@@ -36,24 +34,25 @@ import org.kie.api.task.model.Status;
 import org.kie.api.task.model.Task;
 import org.kie.api.task.model.TaskSummary;
 import org.kie.api.task.model.User;
+import org.kie.internal.query.QueryFilter;
 import org.kie.internal.task.api.ContentMarshallerContext;
 import org.kie.internal.task.api.EventService;
 import org.kie.internal.task.api.InternalTaskService;
 import org.kie.internal.task.api.UserInfo;
 import org.kie.internal.task.api.model.ContentData;
 import org.kie.internal.task.api.model.FaultData;
-import org.kie.internal.task.api.model.NotificationEvent;
 import org.kie.internal.task.api.model.SubTasksStrategy;
 import org.kie.internal.task.api.model.TaskDef;
 import org.kie.internal.task.api.model.TaskEvent;
+import org.kie.internal.task.query.TaskQueryBuilder;
 /**
- * Fully synchronized <code>TaskService</code> implementation used by <code>SingletonRuntimeManager</code>.
+ * Fully synchronized <code>TaskService</code> implementation used by the <code>SingletonRuntimeManager</code>.
  * Synchronization is done on <code>CommandService</code> of the <code>KieSession</code> to ensure correctness 
  * until transaction completion.
  *
  */
 public class SynchronizedTaskService 
-            implements InternalTaskService, EventService<JbpmServicesEventListener<NotificationEvent>,JbpmServicesEventListener<Task>> {
+            implements InternalTaskService, EventService<TaskLifeCycleEventListener> {
 	
 	
 	private Object ksession;
@@ -112,10 +111,9 @@ public class SynchronizedTaskService
     }
 
     @Override
-    public void claimNextAvailable(String userId, List<String> groupIds,
-            String language) {
+    public void claimNextAvailable(String userId, List<String> groupIds) {
         synchronized (ksession) {
-            taskService.claimNextAvailable(userId, groupIds, language);
+            taskService.claimNextAvailable(userId, groupIds);
         }
     }
 
@@ -247,9 +245,9 @@ public class SynchronizedTaskService
 
     @Override
     public List<TaskSummary> getSubTasksAssignedAsPotentialOwner(long parentId,
-            String userId, String language) {
+            String userId) {
         synchronized (ksession) {
-            return taskService.getSubTasksAssignedAsPotentialOwner(parentId, userId, language);
+            return taskService.getSubTasksAssignedAsPotentialOwner(parentId, userId);
         }
     }
 
@@ -297,27 +295,26 @@ public class SynchronizedTaskService
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedAsExcludedOwner(String userId,
-            String language) {
+    public List<TaskSummary> getTasksAssignedAsExcludedOwner(String userId) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsExcludedOwner(userId, language);
+            return  taskService.getTasksAssignedAsExcludedOwner(userId);
         }
     }
 
     @Override
     public List<TaskSummary> getTasksAssignedAsPotentialOwner(String userId,
-            List<String> groupIds, String language) {
+            List<String> groupIds) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsExcludedOwner(userId, language);
+            return  taskService.getTasksAssignedAsPotentialOwner(userId, groupIds);
         }
     }
 
     @Override
     public List<TaskSummary> getTasksAssignedAsPotentialOwner(String userId,
-            List<String> groupIds, String language, int firstResult,
+            List<String> groupIds,  int firstResult,
             int maxResults) {
         synchronized (ksession) {
-           return  taskService.getTasksAssignedAsPotentialOwner(userId, groupIds, language, firstResult, maxResults);
+           return  taskService.getTasksAssignedAsPotentialOwner(userId, groupIds, firstResult, maxResults);
         }
     }
 
@@ -339,34 +336,30 @@ public class SynchronizedTaskService
 
     @Override
     public List<TaskSummary> getTasksAssignedAsPotentialOwnerByStatusByGroup(
-            String userId, List<String> groupIds, List<Status> status,
-            String language) {
+            String userId, List<String> groupIds, List<Status> status) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup(userId, groupIds, status, language);
+            return  taskService.getTasksAssignedAsPotentialOwnerByStatusByGroup(userId, groupIds, status);
         }
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedAsRecipient(String userId,
-            String language) {
+    public List<TaskSummary> getTasksAssignedAsRecipient(String userId) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsRecipient(userId, language);
+            return  taskService.getTasksAssignedAsRecipient(userId);
         }
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedAsTaskInitiator(String userId,
-            String language) {
+    public List<TaskSummary> getTasksAssignedAsTaskInitiator(String userId) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsTaskInitiator(userId, language);
+            return  taskService.getTasksAssignedAsTaskInitiator(userId);
         }
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedAsTaskStakeholder(String userId,
-            String language) {
+    public List<TaskSummary> getTasksAssignedAsTaskStakeholder(String userId) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedAsTaskStakeholder(userId, language);
+            return  taskService.getTasksAssignedAsTaskStakeholder(userId);
         }
     }
 
@@ -418,10 +411,9 @@ public class SynchronizedTaskService
 
     @Override
     public List<TaskSummary> getTasksByStatusByProcessInstanceIdByTaskName(
-            long processInstanceId, List<Status> status, String taskName,
-            String language) {
+            long processInstanceId, List<Status> status, String taskName) {
         synchronized (ksession) {
-            return  taskService.getTasksByStatusByProcessInstanceIdByTaskName(processInstanceId, status, taskName, language);
+            return  taskService.getTasksByStatusByProcessInstanceIdByTaskName(processInstanceId, status, taskName);
         }
     }
 
@@ -772,16 +764,16 @@ public class SynchronizedTaskService
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedByGroup(String groupId, String language) {
+    public List<TaskSummary> getTasksAssignedByGroup(String groupId) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedByGroup(groupId, language);
+            return  taskService.getTasksAssignedByGroup(groupId);
         }
     }
 
     @Override
-    public List<TaskSummary> getTasksAssignedByGroups(List<String> groupIds, String language) {
+    public List<TaskSummary> getTasksAssignedByGroups(List<String> groupIds) {
         synchronized (ksession) {
-            return  taskService.getTasksAssignedByGroups(groupIds, language);
+            return  taskService.getTasksAssignedByGroups(groupIds);
         }
     }
 
@@ -822,53 +814,35 @@ public class SynchronizedTaskService
 
     @SuppressWarnings("unchecked")
     @Override
-    public void registerTaskLifecycleEventListener(JbpmServicesEventListener<Task> taskLifecycleEventListener) {
+    public void registerTaskEventListener(TaskLifeCycleEventListener taskLifecycleEventListener) {
         synchronized (ksession) {
-            ((EventService<Task, JbpmServicesEventListener<Task>>)taskService)
-            .registerTaskLifecycleEventListener(taskLifecycleEventListener);
+            ((EventService<TaskLifeCycleEventListener>)taskService).registerTaskEventListener(taskLifecycleEventListener);
         }
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public void registerTaskNotificationEventListener(JbpmServicesEventListener<NotificationEvent> notificationEventListener) {
+    public List<TaskLifeCycleEventListener> getTaskEventListeners() {
         synchronized (ksession) {
-            ((EventService<JbpmServicesEventListener<NotificationEvent>, ?>)taskService)
-            	.registerTaskNotificationEventListener(notificationEventListener);
+            return ((EventService<TaskLifeCycleEventListener>) taskService).getTaskEventListeners();
         }
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public Event<Task> getTaskLifecycleEventListeners() {
+    public void clearTaskEventListeners() {
         synchronized (ksession) {
-            return ((EventService<Task, JbpmServicesEventListener<Task>>) taskService).getTaskLifecycleEventListeners();
+            ((EventService<TaskLifeCycleEventListener>) taskService).clearTaskEventListeners();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public Event<NotificationEvent> getTaskNotificationEventListeners() {
-        synchronized (ksession) {
-            return ((EventService<JbpmServicesEventListener<NotificationEvent>, ?>) taskService).getTaskNotificationEventListeners();
+	@SuppressWarnings("unchecked")
+	@Override
+	public void removeTaskEventListener(TaskLifeCycleEventListener listener) {
+		synchronized (ksession) {
+            ((EventService<TaskLifeCycleEventListener>) taskService).removeTaskEventListener(listener);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void clearTaskLifecycleEventListeners() {
-        synchronized (ksession) {
-            ((EventService<Task, JbpmServicesEventListener<Task>>) taskService).clearTaskLifecycleEventListeners();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void clearTasknotificationEventListeners() {
-        synchronized (ksession) {
-            ((EventService<JbpmServicesEventListener<NotificationEvent>, ?>) taskService).clearTasknotificationEventListeners();
-        }
-    }
+	}
 
 	@Override
 	public <T> T execute(Command<T> command) {
@@ -929,5 +903,54 @@ public class SynchronizedTaskService
             return null;
         }
     }
+
+
+	@Override
+	public List<TaskSummary> getTasksByVariousFields(String userId, List<Long> workItemIds,
+			List<Long> taskIds, List<Long> procInstIds, List<String> busAdmins,
+			List<String> potOwners, List<String> taskOwners,
+			List<Status> status,  boolean union) {
+		synchronized (ksession) {
+            if (taskService != null) {
+                return taskService.getTasksByVariousFields(userId, workItemIds, taskIds, procInstIds,
+                		busAdmins, potOwners, taskOwners, status, union);
+            }
+            return null;
+        }
+	}
+
+
+	@Override
+	public List<TaskSummary> getTasksByVariousFields(String userId, Map<String, List<?>> parameters, boolean union) {
+		synchronized (ksession) {
+            if (taskService != null) {
+                return taskService.getTasksByVariousFields(userId, parameters, union);
+            }
+            
+            return null;
+        }
+	}
+
+	@Override
+	public List<TaskSummary> getTasksOwned(String userId, List<Status> status, QueryFilter filter) {
+	    return taskService.getTasksOwned(userId, status, filter);
+	}
+
+	@Override
+	public List<TaskSummary> getTasksAssignedAsPotentialOwner(String userId, List<String> groupIds, List<Status> status, QueryFilter filter) {
+	    return taskService.getTasksAssignedAsPotentialOwner(userId, groupIds, status, filter);
+	}
+
+	@Override
+	public TaskQueryBuilder taskQuery(String userId) {
+	    return taskService.taskQuery(userId);
+	}
+
+        @Override
+        public List<TaskSummary> getTasksAssignedAsBusinessAdministratorByStatus(String userId, String language, List<Status> statuses) {
+            synchronized (ksession) {
+                return taskService.getTasksAssignedAsBusinessAdministratorByStatus(userId, language, statuses);
+            }
+        }
 
 }

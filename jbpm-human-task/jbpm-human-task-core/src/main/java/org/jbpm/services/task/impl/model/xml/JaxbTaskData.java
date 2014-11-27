@@ -11,10 +11,8 @@ import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlSeeAlso;
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
-import org.jbpm.services.task.impl.model.xml.adapter.StatusXmlAdapter;
-import org.jbpm.services.task.impl.model.xml.adapter.UserXmlAdapter;
+import org.codehaus.jackson.annotate.JsonAutoDetect;
 import org.kie.api.task.model.Attachment;
 import org.kie.api.task.model.Comment;
 import org.kie.api.task.model.Status;
@@ -24,23 +22,20 @@ import org.kie.api.task.model.User;
 @XmlRootElement(name = "task-data")
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlSeeAlso({ JaxbComment.class, JaxbAttachment.class })
+@JsonAutoDetect(getterVisibility=JsonAutoDetect.Visibility.NONE, setterVisibility=JsonAutoDetect.Visibility.NONE, fieldVisibility=JsonAutoDetect.Visibility.ANY)
 public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements TaskData {
 
     @XmlElement
-    @XmlJavaTypeAdapter(value = StatusXmlAdapter.class)
     private Status status;
 
-    @XmlElement(name = "previous-status")
-    @XmlJavaTypeAdapter(value = StatusXmlAdapter.class)
+    @XmlElement
     private Status previousStatus;
 
     @XmlElement(name = "actual-owner")
-    @XmlJavaTypeAdapter(value = UserXmlAdapter.class)
-    private User actualOwner;
+    private String actualOwner;
 
     @XmlElement(name = "created-by")
-    @XmlJavaTypeAdapter(value = UserXmlAdapter.class)
-    private User createdBy;
+    private String createdBy;
 
     @XmlElement(name = "created-on")
     @XmlSchemaType(name = "dateTime")
@@ -67,7 +62,7 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     private Long processInstanceId;
 
     @XmlElement(name = "document-type")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String documentType;
 
     @XmlElement(name = "document-content-id")
@@ -75,7 +70,7 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     private Long documentContentId;
 
     @XmlElement(name = "output-type")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String outputType;
 
     @XmlElement(name = "output-content-id")
@@ -83,11 +78,11 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     private Long outputContentId;
 
     @XmlElement(name = "fault-name")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String faultName;
 
     @XmlElement(name = "fault-type")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String faultType;
 
     @XmlElement(name = "fault-content-id")
@@ -99,21 +94,21 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     private Long parentId;
 
     @XmlElement(name = "process-id")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String processId;
 
     @XmlElement(name = "process-session-id")
     @XmlSchemaType(name = "int")
     private Integer processSessionId;
 
-    @XmlElement(name = "comment")
+    @XmlElement
     private List<JaxbComment> comments;
 
-    @XmlElement(name = "attachment")
+    @XmlElement
     private List<JaxbAttachment> attachments;
     
     @XmlElement(name = "deployment-id")
-    @XmlSchemaType(name = "String")
+    @XmlSchemaType(name = "string")
     private String deploymentId;
 
     public JaxbTaskData() {
@@ -121,12 +116,43 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     }
 
     public JaxbTaskData(TaskData taskData) {
-        super(taskData, TaskData.class);
-        List<JaxbComment> commentList = new ArrayList<JaxbComment>();
-        for (Object comment : taskData.getComments() ) {
-            commentList.add(new JaxbComment((Comment) comment));
+        super(TaskData.class);
+       
+        this.activationTime = taskData.getActivationTime();
+        User actualOwnerUser = taskData.getActualOwner();
+        if( actualOwnerUser != null ) { 
+            this.actualOwner = actualOwnerUser.getId();
         }
-        this.comments = commentList;
+        if( taskData.getComments() != null ) { 
+            List<JaxbComment> commentList = new ArrayList<JaxbComment>();
+            for (Object comment : taskData.getComments() ) {
+                commentList.add(new JaxbComment((Comment) comment));
+            }
+            this.comments = commentList;
+        }
+        User createdByUser = taskData.getCreatedBy();
+        if( createdByUser != null ) { 
+            this.createdBy = createdByUser.getId();
+        }
+        this.createdOn = taskData.getCreatedOn();
+        this.deploymentId = taskData.getDeploymentId();
+        this.documentContentId = taskData.getDocumentContentId();
+        this.documentType = taskData.getDocumentType();
+        this.expirationTime = taskData.getExpirationTime();
+        this.faultContentId = taskData.getFaultContentId();
+        this.faultName = taskData.getFaultName();
+        this.faultType = taskData.getFaultType();
+        this.outputContentId = taskData.getOutputContentId();
+        this.outputType = taskData.getOutputType();
+        this.parentId = taskData.getParentId();
+        this.previousStatus = taskData.getPreviousStatus();
+        this.processId = taskData.getProcessId();
+        this.processInstanceId = taskData.getProcessInstanceId();
+        this.processSessionId = taskData.getProcessSessionId();
+        this.status = taskData.getStatus();
+        this.skipable = taskData.isSkipable();
+        this.workItemId = taskData.getWorkItemId();
+        
         List<JaxbAttachment> attachList = new ArrayList<JaxbAttachment>();
         for (Object attach : taskData.getAttachments() ) { 
             attachList.add(new JaxbAttachment((Attachment) attach));
@@ -146,12 +172,28 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
 
     @Override
     public User getActualOwner() {
+        return new GetterUser(actualOwner);
+    }
+
+    public String getActualOwnerId() {
         return actualOwner;
+    }
+
+    public void setActualOwnerId(String actualOwnerId) {
+        this.actualOwner = actualOwnerId;
     }
 
     @Override
     public User getCreatedBy() {
+        return new GetterUser(createdBy);
+    }
+
+    public String getCreatedById() {
         return createdBy;
+    }
+
+    public void setCreatedById(String createdById) {
+        this.createdBy = createdById;
     }
 
     @Override
@@ -240,6 +282,14 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
         return Collections.unmodifiableList(commentList);
     }
 
+    public List<JaxbComment> getJaxbComments() {
+        return comments;
+    }
+
+    public void setJaxbComments(List<JaxbComment> jaxbComments) {
+        this.comments = jaxbComments;
+    }
+
     @Override
     public List<Attachment> getAttachments() {
         List<Attachment> attachmentList = new ArrayList<Attachment>();
@@ -251,6 +301,14 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
         return Collections.unmodifiableList(attachmentList);
     }
 
+    public List<JaxbAttachment> getJaxbAttachments() {
+        return attachments;
+    }
+
+    public void setJaxbAttachments(List<JaxbAttachment> jaxbAttachments) {
+        this.attachments = jaxbAttachments;
+    }
+
     @Override
     public long getParentId() {
         return parentId;
@@ -259,6 +317,86 @@ public class JaxbTaskData extends AbstractJaxbTaskObject<TaskData> implements Ta
     @Override
     public String getDeploymentId() {
         return deploymentId;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public void setPreviousStatus(Status previousStatus) {
+        this.previousStatus = previousStatus;
+    }
+
+    public void setCreatedOn(Date createdOn) {
+        this.createdOn = createdOn;
+    }
+
+    public void setActivationTime(Date activationTime) {
+        this.activationTime = activationTime;
+    }
+
+    public void setExpirationTime(Date expirationTime) {
+        this.expirationTime = expirationTime;
+    }
+
+    public void setSkipable(Boolean skipable) {
+        this.skipable = skipable;
+    }
+
+    public void setWorkItemId(Long workItemId) {
+        this.workItemId = workItemId;
+    }
+
+    public void setProcessInstanceId(Long processInstanceId) {
+        this.processInstanceId = processInstanceId;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public void setDocumentContentId(Long documentContentId) {
+        this.documentContentId = documentContentId;
+    }
+
+    public void setOutputType(String outputType) {
+        this.outputType = outputType;
+    }
+
+    public void setOutputContentId(Long outputContentId) {
+        this.outputContentId = outputContentId;
+    }
+
+    public void setFaultName(String faultName) {
+        this.faultName = faultName;
+    }
+
+    public void setFaultType(String faultType) {
+        this.faultType = faultType;
+    }
+
+    public void setFaultContentId(Long faultContentId) {
+        this.faultContentId = faultContentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
+
+    public void setProcessId(String processId) {
+        this.processId = processId;
+    }
+
+    public void setProcessSessionId(Integer processSessionId) {
+        this.processSessionId = processSessionId;
+    }
+
+    public void setComments(List<JaxbComment> comments) {
+        this.comments = comments;
+    }
+
+    public void setDeploymentId(String deploymentId) {
+        this.deploymentId = deploymentId;
     }
 
 }

@@ -17,54 +17,29 @@ package org.jbpm.services.task.wih;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
-import javax.enterprise.event.Reception;
-
-import org.jboss.seam.transaction.Transactional;
-import org.jbpm.services.task.annotations.External;
-import org.jbpm.services.task.events.AfterTaskCompletedEvent;
-import org.jbpm.services.task.events.AfterTaskFailedEvent;
-import org.jbpm.services.task.events.AfterTaskSkippedEvent;
 import org.jbpm.services.task.lifecycle.listeners.TaskLifeCycleEventListener;
 import org.jbpm.services.task.utils.ContentMarshallerHelper;
-import org.jbpm.shared.services.impl.events.JbpmServicesEventListener;
 import org.kie.api.runtime.KieSession;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.task.TaskEvent;
 import org.kie.api.task.model.Content;
 import org.kie.api.task.model.Status;
 import org.kie.api.task.model.Task;
 import org.kie.internal.runtime.manager.InternalRuntimeManager;
+import org.kie.internal.runtime.manager.RuntimeManagerRegistry;
 import org.kie.internal.runtime.manager.context.ProcessInstanceIdContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- *
- * @author salaboy
- */
-@ApplicationScoped
-@External
-@Transactional
-public class ExternalTaskEventListener extends JbpmServicesEventListener<Task>  implements TaskLifeCycleEventListener {
 
-    private RuntimeManager runtimeManager;
-    private Map<String, RuntimeManager> mappedManagers = new ConcurrentHashMap<String, RuntimeManager>();
-    
+public class ExternalTaskEventListener implements TaskLifeCycleEventListener {
+
+    private RuntimeManagerRegistry registry = RuntimeManagerRegistry.get();
     private static final Logger logger = LoggerFactory.getLogger(ExternalTaskEventListener.class);
  
     public ExternalTaskEventListener() {
-    }
-
-    public RuntimeManager getRuntimeManager() {
-        return runtimeManager;
-    }
-
-    public void setRuntimeManager(RuntimeManager runtimeManager) {
-        this.runtimeManager = runtimeManager;
     }
 
     public void processTaskState(Task task) {
@@ -114,7 +89,8 @@ public class ExternalTaskEventListener extends JbpmServicesEventListener<Task>  
         // DO NOTHING
     }
 
-    public void afterTaskSkippedEvent(@Observes(notifyObserver=Reception.IF_EXISTS) @AfterTaskSkippedEvent Task task) {
+    public void afterTaskSkippedEvent(TaskEvent event) {
+    	Task task = event.getTask();
         long processInstanceId = task.getTaskData().getProcessInstanceId();
         if (processInstanceId <= 0) {
             return;
@@ -130,8 +106,8 @@ public class ExternalTaskEventListener extends JbpmServicesEventListener<Task>  
         // DO NOTHING
     }
 
-    public void afterTaskCompletedEvent(@Observes(notifyObserver=Reception.IF_EXISTS) @AfterTaskCompletedEvent Task task) {
-
+    public void afterTaskCompletedEvent(TaskEvent event) {
+    	Task task = event.getTask();
         long processInstanceId = task.getTaskData().getProcessInstanceId();
         if (processInstanceId <= 0) {
             return;
@@ -146,7 +122,8 @@ public class ExternalTaskEventListener extends JbpmServicesEventListener<Task>  
         }
     }
 
-    public void afterTaskFailedEvent(@Observes(notifyObserver=Reception.IF_EXISTS) @AfterTaskFailedEvent Task task) {
+    public void afterTaskFailedEvent(TaskEvent event) {
+    	Task task = event.getTask();
         long processInstanceId = task.getTaskData().getProcessInstanceId();
         if (processInstanceId <= 0) {
             return;
@@ -154,34 +131,161 @@ public class ExternalTaskEventListener extends JbpmServicesEventListener<Task>  
         processTaskState(task);
     }
 
-    public void afterTaskAddedEvent(Task ti) {
+    public void afterTaskAddedEvent(TaskEvent event) {
         
         // DO NOTHING
     }
 
-    public void afterTaskExitedEvent(Task ti) {
+    public void afterTaskExitedEvent(TaskEvent event) {
         // DO NOTHING
     }
     
-    public RuntimeManager getManager(Task task) {
-        if (runtimeManager != null) {
-            return runtimeManager;
-        } else if (mappedManagers.size() == 1) {
-            return mappedManagers.values().iterator().next();
-        }else {            
-            return mappedManagers.get(task.getTaskData().getDeploymentId());
-        }
+    public RuntimeManager getManager(Task task) {           
+        return registry.getManager(task.getTaskData().getDeploymentId());
+        
     }
 
-    public Map<String, RuntimeManager> getMappedManagers() {
-        return mappedManagers;
+
+    @Override
+    public void afterTaskReleasedEvent(TaskEvent event) {
+        
     }
 
-    public void setMappedManagers(Map<String, RuntimeManager> mappedManagers) {
-        this.mappedManagers = mappedManagers;
+    @Override
+    public void afterTaskResumedEvent(TaskEvent event) {
+        
     }
-    
-    public void addMappedManger(String name, RuntimeManager manager) {
-        this.mappedManagers.put(name, manager);
+
+    @Override
+    public void afterTaskSuspendedEvent(TaskEvent event) {
+        
     }
+
+    @Override
+    public void afterTaskForwardedEvent(TaskEvent event) {
+        
+    }
+
+    @Override
+    public void afterTaskDelegatedEvent(TaskEvent event) {
+        
+    }
+
+	@Override
+	public void beforeTaskActivatedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskClaimedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskSkippedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskStartedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskStoppedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskCompletedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskFailedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskAddedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskExitedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskReleasedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskResumedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskSuspendedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskForwardedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskDelegatedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void afterTaskActivatedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void afterTaskClaimedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void afterTaskStartedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void afterTaskStoppedEvent(TaskEvent event) {
+		
+		
+	}
+
+	@Override
+	public void beforeTaskNominatedEvent(TaskEvent event) {
+		
+	}
+
+	@Override
+	public void afterTaskNominatedEvent(TaskEvent event) {
+
+	}
 }

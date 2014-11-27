@@ -19,22 +19,19 @@ package org.jbpm.executor.impl;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
-import org.jboss.seam.transaction.Transactional;
 import org.jbpm.executor.entities.RequestInfo;
-import org.jbpm.shared.services.api.JbpmServicesPersistenceManager;
 import org.kie.internal.executor.api.CommandContext;
 import org.kie.internal.executor.api.Executor;
-import org.kie.internal.executor.api.ExecutorQueryService;
+import org.kie.internal.executor.api.ExecutorStoreService;
 import org.kie.internal.executor.api.STATUS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,45 +48,26 @@ import org.slf4j.LoggerFactory;
  * Additionally executor can be disable to not start at all when system property org.kie.executor.disabled is 
  * set to true
  */
-@Singleton
-@Transactional
 public class ExecutorImpl implements Executor {
 
     private static final Logger logger = LoggerFactory.getLogger(ExecutorImpl.class);
-
-    @Inject
-    private JbpmServicesPersistenceManager pm;
-    @Inject
-    private ExecutorRunnable runnableTask;
-    @Inject
-    private ExecutorQueryService queryService;
-    @Inject
-    private ClassCacheManager classCacheManager;
     
-    private ScheduledFuture<?> handle;
+    private ExecutorStoreService executorStoreService;
+
+	private List<ScheduledFuture<?>> handle = new ArrayList<ScheduledFuture<?>>();
     private int threadPoolSize = Integer.parseInt(System.getProperty("org.kie.executor.pool.size", "1"));
     private int retries = Integer.parseInt(System.getProperty("org.kie.executor.retry.count", "3"));
     private int interval = Integer.parseInt(System.getProperty("org.kie.executor.interval", "3"));
-    private ScheduledExecutorService scheduler;
+    private TimeUnit timeunit = TimeUnit.valueOf(System.getProperty("org.kie.executor.timeunit", "SECONDS"));
+
+	private ScheduledExecutorService scheduler;
 
     public ExecutorImpl() {
     }
-
-    public void setPm(JbpmServicesPersistenceManager pm) {
-        this.pm = pm;
-    }
-
-    public void setExecutorRunnable(ExecutorRunnable runnableTask) {
-        this.runnableTask = runnableTask;
-    }
-
-    public void setQueryService(ExecutorQueryService queryService) {
-        this.queryService = queryService;
-    }
     
-    public void setClassCacheManager(ClassCacheManager classCacheManager) {
-        this.classCacheManager = classCacheManager;
-    }
+    public void setExecutorStoreService(ExecutorStoreService executorStoreService) {
+		this.executorStoreService = executorStoreService;
+	}
 
     /**
      * {@inheritDoc}
@@ -132,6 +110,20 @@ public class ExecutorImpl implements Executor {
     public void setThreadPoolSize(int threadPoolSize) {
         this.threadPoolSize = threadPoolSize;
     }
+    
+    /**
+     * {@inheritDoc}
+     */
+    public TimeUnit getTimeunit() {
+		return timeunit;
+	}
+
+    /**
+     * {@inheritDoc}
+     */
+	public void setTimeunit(TimeUnit timeunit) {
+		this.timeunit = timeunit;
+	}
 
     /**
      * {@inheritDoc}
@@ -139,11 +131,26 @@ public class ExecutorImpl implements Executor {
     public void init() {
         if (!"true".equalsIgnoreCase(System.getProperty("org.kie.executor.disabled"))) {
             logger.info("Starting Executor Component ...\n" + " \t - Thread Pool Size: {}" + "\n"
+                    + " \t - Interval: {} {} \n" + " \t - Retries per Request: {}\n",
+                    threadPoolSize, interval, timeunit.toString(), retries);
+            
+            scheduler = Executors.newScheduledThreadPool(threadPoolSize);
+            for (int i = 0; i < threadPoolSize; i++) {
+            	handle.add(scheduler.scheduleAtFixedRate(executorStoreService.buildExecutorRunnable(), 2, interval, timeunit));
+            }
+        }
+    }
+    
+    public void init(ThreadFactory threadFactory) {
+        if (!"true".equalsIgnoreCase(System.getProperty("org.kie.executor.disabled"))) {
+            logger.info("Starting Executor Component ...\n" + " \t - Thread Pool Size: {}" + "\n"
                     + " \t - Interval: {}" + " Seconds\n" + " \t - Retries per Request: {}\n",
                     threadPoolSize, interval, retries);
-    
-            scheduler = Executors.newScheduledThreadPool(threadPoolSize);
-            handle = scheduler.scheduleAtFixedRate(runnableTask, 2, interval, TimeUnit.SECONDS);
+            
+            scheduler = Executors.newScheduledThreadPool(threadPoolSize, threadFactory);
+            for (int i = 0; i < threadPoolSize; i++) {
+            	handle.add(scheduler.scheduleAtFixedRate(executorStoreService.buildExecutorRunnable(), 2, interval, timeunit));
+            }
         }
     }
     
@@ -153,7 +160,9 @@ public class ExecutorImpl implements Executor {
     public void destroy() {
         logger.info(" >>>>> Destroying Executor !!!");
         if (handle != null) {
-            handle.cancel(true);
+        	for (ScheduledFuture<?> h : handle) {
+        		h.cancel(true);
+        	}
         }
         if (scheduler != null) {
             scheduler.shutdownNow();
@@ -185,6 +194,7 @@ public class ExecutorImpl implements Executor {
         requestInfo.setTime(date);
         requestInfo.setMessage("Ready to execute");
         requestInfo.setDeploymentId((String)ctx.getData("deploymentId"));
+        requestInfo.setOwner((String)ctx.getData("owner"));
         if (ctx.getData("retries") != null) {
             requestInfo.setRetries(Integer.valueOf(String.valueOf(ctx.getData("retries"))));
         } else {
@@ -201,8 +211,8 @@ public class ExecutorImpl implements Executor {
                 requestInfo.setRequestData(null);
             }
         }
-
-        pm.persist(requestInfo);
+        
+        executorStoreService.persistRequest(requestInfo);
 
         logger.debug("Scheduling request for Command: {} - requestId: {} with {} retries", commandId, requestInfo.getId(), requestInfo.getRetries());
         return requestInfo.getId();
@@ -214,19 +224,12 @@ public class ExecutorImpl implements Executor {
     public void cancelRequest(Long requestId) {
         logger.debug("Before - Cancelling Request with Id: {}", requestId);
 
-        List<?> result = queryService.getPendingRequestById(requestId);
-        if (result.isEmpty()) {
-            return;
-        }
-        RequestInfo r = (RequestInfo) result.iterator().next();
+        executorStoreService.removeRequest(requestId);
 
-        r.setStatus(STATUS.CANCELLED);
-        pm.merge(r);
-
-        
-        
         logger.debug("After - Cancelling Request with Id: {}", requestId);
     }
+
+    
 
 
 }

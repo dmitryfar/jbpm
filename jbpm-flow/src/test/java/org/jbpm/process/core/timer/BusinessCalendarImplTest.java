@@ -12,9 +12,14 @@ import java.util.concurrent.TimeUnit;
 import org.drools.core.time.SessionPseudoClock;
 import org.jbpm.test.util.AbstractBaseTest;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 public class BusinessCalendarImplTest extends AbstractBaseTest {
 
+    public void addLogger() { 
+        logger = LoggerFactory.getLogger(this.getClass());
+    }
+    
     @Test
     public void testCalculateHours() {
         Properties config = new Properties();
@@ -245,6 +250,34 @@ public class BusinessCalendarImplTest extends AbstractBaseTest {
         
         
         Date result = businessCal.calculateBusinessTimeAsDate("2d30m");
+        
+        assertEquals(expectedDate, formatDate("yyyy-MM-dd HH:mm", result));
+    }
+    
+    @Test
+    public void testCalculateISOHours() {
+        Properties config = new Properties();
+        String expectedDate = "2012-05-04 16:45";
+        SessionPseudoClock clock = new StaticPseudoClock(parseToDateWithTime("2012-05-04 13:45").getTime());
+        
+        BusinessCalendarImpl businessCal = new BusinessCalendarImpl(config, clock);
+        
+        Date result = businessCal.calculateBusinessTimeAsDate("PT3H");
+        
+        assertEquals(expectedDate, formatDate("yyyy-MM-dd HH:mm", result));
+    }
+    
+    @Test
+    public void testCalculateISODaysAndHours() {
+        Properties config = new Properties();
+        config.setProperty(BusinessCalendarImpl.HOLIDAYS, "2012-05-09");
+        String expectedDate = "2012-05-10 15:30";
+        
+        SessionPseudoClock clock = new StaticPseudoClock(parseToDateWithTime("2012-05-08 11:10").getTime());
+        
+        BusinessCalendarImpl businessCal = new BusinessCalendarImpl(config, clock);
+        
+        Date result = businessCal.calculateBusinessTimeAsDate("P1DT4H20M");
         
         assertEquals(expectedDate, formatDate("yyyy-MM-dd HH:mm", result));
     }

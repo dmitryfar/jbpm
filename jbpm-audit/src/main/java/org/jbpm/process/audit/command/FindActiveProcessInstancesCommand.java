@@ -23,18 +23,18 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 
-import org.jbpm.process.audit.JPAAuditLogService;
+import org.jbpm.process.audit.AuditLogService;
 import org.jbpm.process.audit.ProcessInstanceLog;
 import org.kie.internal.command.Context;
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-public class FindActiveProcessInstancesCommand extends AbstractHistoryLogCommand<List<ProcessInstanceLog>> {
+public class FindActiveProcessInstancesCommand extends AuditCommand<List<ProcessInstanceLog>> {
 
     /** generated serial version UID */
     private static final long serialVersionUID = 3096240261041200350L;
 
-    @XmlAttribute(required=true)
+    @XmlAttribute(required=false)
     @XmlSchemaType(name="string")
     private String processId = null;
     
@@ -51,10 +51,22 @@ public class FindActiveProcessInstancesCommand extends AbstractHistoryLogCommand
 	
     public List<ProcessInstanceLog> execute(Context cntxt) {
         setLogEnvironment(cntxt);
-        return this.auditLogService.findActiveProcessInstances(processId);
+        if( processId != null && ! processId.trim().isEmpty() ) { 
+            return this.auditLogService.findActiveProcessInstances(processId);
+        } else { 
+            return this.auditLogService.findActiveProcessInstances();
+        }
+    }
+
+    public String getProcessId() {
+        return processId;
+    }
+
+    public void setProcessId(String processId) {
+        this.processId = processId;
     }
     
     public String toString() {
-        return JPAAuditLogService.class.getSimpleName() + ".findActiveProcessInstances("+ processId + ")";
+        return AuditLogService.class.getSimpleName() + ".findActiveProcessInstances("+ processId + ")";
     }
 }

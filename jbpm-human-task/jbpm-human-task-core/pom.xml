@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.jbpm</groupId>
     <artifactId>jbpm-human-task</artifactId>
-    <version>6.1.0-SNAPSHOT</version>
+    <version>6.3.0-SNAPSHOT</version>
   </parent>
   <artifactId>jbpm-human-task-core</artifactId>
   <packaging>bundle</packaging>
@@ -13,10 +13,11 @@
   <name>jBPM :: Human Task Core</name>
 
   <dependencies>
-    <dependency>
-      <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-shared-services</artifactId>
-    </dependency>
+  <dependency>
+    <groupId>com.google.protobuf</groupId>
+    <artifactId>protobuf-java</artifactId>
+  </dependency>
+
     <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-flow</artifactId>
@@ -30,31 +31,19 @@
       <groupId>org.kie</groupId>
       <artifactId>kie-api</artifactId>
     </dependency>
-    <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-commons-cdi</artifactId>
-    </dependency>
 
     <dependency>
-      <groupId>org.jboss.seam.transaction</groupId>
-      <artifactId>seam-transaction</artifactId>
+      <groupId>org.kie</groupId>
+      <artifactId>kie-internal</artifactId>
     </dependency>
 
-    <dependency>
-      <groupId>javax.enterprise</groupId>
-      <artifactId>cdi-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>javax.inject</groupId>
-      <artifactId>javax.inject</artifactId>
-    </dependency>
     <dependency>
       <groupId>javax.activation</groupId>
       <artifactId>activation</artifactId>
     </dependency>
     <dependency>
-      <groupId>javax.annotation</groupId>
-      <artifactId>jsr250-api</artifactId>
+      <groupId>org.jboss.spec.javax.annotation</groupId>
+      <artifactId>jboss-annotations-api_1.1_spec</artifactId>
     </dependency>
 
     <dependency>
@@ -71,41 +60,48 @@
       <groupId>javax.mail</groupId>
       <artifactId>mail</artifactId>
     </dependency>
+
     <dependency>
-      <groupId>javax.security</groupId>
-      <artifactId>jacc</artifactId>
-      <version>1.0</version>
+      <groupId>org.jboss.spec.javax.security.jacc</groupId>
+      <artifactId>jboss-jacc-api_1.4_spec</artifactId>
       <scope>provided</scope>
     </dependency>
 
-    <!-- test -->
     <dependency>
-      <groupId>org.jboss.solder</groupId>
-      <artifactId>solder-impl</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.solder</groupId>
-      <artifactId>solder-api</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.weld</groupId>
-      <artifactId>weld-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.weld.se</groupId>
-      <artifactId>weld-se-core</artifactId>
-      <scope>test</scope>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
 
+    <!-- JSON serialization -->
+    <dependency>
+      <groupId>org.codehaus.jackson</groupId>
+      <artifactId>jackson-core-asl</artifactId>
+    </dependency>
+   
+    <!-- TEST -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <scope>test</scope>
+    </dependency>
+    
+    <!-- persistence -->
+    <dependency>
+	    <groupId>org.jbpm</groupId>
+	    <artifactId>jbpm-human-task-jpa</artifactId>
+	    <scope>test</scope>
+	  </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-persistence-jpa</artifactId>
       <scope>test</scope>
     </dependency>
-
+    <dependency>
+      <groupId>org.jbpm</groupId>
+      <artifactId>jbpm-persistence-jpa</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.hibernate</groupId>
       <artifactId>hibernate-entitymanager</artifactId>
@@ -121,27 +117,12 @@
       <artifactId>h2</artifactId>
       <scope>test</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.jboss.arquillian.junit</groupId>
-      <artifactId>arquillian-junit-container</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.arquillian.container</groupId>
-      <artifactId>arquillian-weld-se-embedded-1.1</artifactId>
-      <scope>test</scope>
-    </dependency>
     <dependency>
       <groupId>org.codehaus.btm</groupId>
       <artifactId>btm</artifactId>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>org.jboss.arquillian.core</groupId>
-      <artifactId>arquillian-core-api</artifactId>
-      <scope>test</scope>
-    </dependency>
+    
     <dependency>
       <groupId>org.subethamail</groupId>
       <artifactId>subethasmtp-wiser</artifactId>
@@ -157,14 +138,28 @@
         </exclusion>
       </exclusions>
     </dependency>
+    
+    <!-- serialization tests -->
     <dependency>
-      <groupId>org.jboss.spec.javax.ejb</groupId>
-      <artifactId>jboss-ejb-api_3.1_spec</artifactId>
+      <groupId>org.jboss.resteasy</groupId>
+      <artifactId>resteasy-jackson-provider</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.reflections</groupId>
+      <artifactId>reflections</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- LDAP tests -->
+    <dependency>
+      <groupId>com.unboundid</groupId>
+      <artifactId>unboundid-ldapsdk</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -189,7 +184,19 @@
           <instructions>
             <Bundle-SymbolicName>org.jbpm.services.task</Bundle-SymbolicName>
             <Import-Package>
-              !org.jbpm.services.task,
+              !org.jbpm.services.task.admin,
+              !org.jbpm.services.task.commands,
+              !org.jbpm.services.task.deadlines,
+              !org.jbpm.services.task.events,
+              !org.jbpm.services.task.exception,
+              !org.jbpm.services.task.identity,
+              !org.jbpm.services.task.impl,
+              !org.jbpm.services.task.internals,
+              !org.jbpm.services.task.lifecycle,
+              !org.jbpm.services.task.query,
+              !org.jbpm.services.task.rule,
+              !org.jbpm.services.task.utils,
+              org.jbpm.services.task.persistence;resolution:=optional,
               *
             </Import-Package>
             <Private-Package></Private-Package>

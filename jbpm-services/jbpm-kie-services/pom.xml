@@ -5,13 +5,17 @@
   <parent>
     <groupId>org.jbpm</groupId>
     <artifactId>jbpm-services</artifactId>
-    <version>6.1.0-SNAPSHOT</version>
+    <version>6.3.0-SNAPSHOT</version>
   </parent>
-  <groupId>org.jbpm</groupId>
   <artifactId>jbpm-kie-services</artifactId>
+  <packaging>bundle</packaging>
   <name>jBPM :: KIE Services</name>
 
   <dependencies>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-artifact</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.drools</groupId>
       <artifactId>drools-core</artifactId>
@@ -28,14 +32,13 @@
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-audit</artifactId>
     </dependency>
-
     <dependency>
       <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-human-task-core</artifactId>
+      <artifactId>jbpm-flow</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-shared-services</artifactId>
+      <artifactId>jbpm-human-task-core</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jbpm</groupId>
@@ -45,9 +48,10 @@
       <groupId>org.jbpm</groupId>
       <artifactId>jbpm-human-task-workitems</artifactId>
     </dependency>
+    
     <dependency>
       <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-form-services</artifactId>
+      <artifactId>jbpm-services-api</artifactId>
     </dependency>
 
     <!-- kie -->
@@ -58,68 +62,29 @@
     <dependency>
       <groupId>org.kie</groupId>
       <artifactId>kie-internal</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-commons-io</artifactId>
-       <exclusions>
-        <exclusion>
-          <artifactId>log4j</artifactId>
-          <groupId>log4j</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-commons-cdi</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-nio2-model</artifactId>
-    </dependency>  
+    </dependency>    
     <dependency>
       <groupId>org.kie</groupId>
       <artifactId>kie-ci</artifactId>
     </dependency>  
-
-    <dependency>
-      <groupId>org.jboss.seam.transaction</groupId>
-      <artifactId>seam-transaction</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.solder</groupId>
-      <artifactId>solder-api</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>javax.enterprise</groupId>
-      <artifactId>cdi-api</artifactId>
-      <scope>provided</scope>
-    </dependency>
+  
     <dependency>
       <groupId>org.hibernate.javax.persistence</groupId>
       <artifactId>hibernate-jpa-2.0-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>javax.transaction</groupId>
-      <artifactId>jta</artifactId>
+      <groupId>org.jboss.spec.javax.transaction</groupId>
+      <artifactId>jboss-transaction-api_1.1_spec</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jboss.spec.javax.jms</groupId>
+      <artifactId>jboss-jms-api_1.1_spec</artifactId>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>
       <groupId>org.mvel</groupId>
       <artifactId>mvel2</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-queryparser</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-analyzers-common</artifactId>
     </dependency>
 
     <dependency>
@@ -127,10 +92,15 @@
       <artifactId>jboss-el-api_2.2_spec</artifactId>
     </dependency>
 
+
     <dependency>
       <groupId>org.codehaus.btm</groupId>
       <artifactId>btm</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.aether</groupId>
+      <artifactId>aether-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.freemarker</groupId>
@@ -146,36 +116,20 @@
       <artifactId>commons-codec</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.thoughtworks.xstream</groupId>
+      <artifactId>xstream</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
     
+    <dependency>
+      <groupId>org.scannotation</groupId>
+      <artifactId>scannotation</artifactId>
+    </dependency>
+    
     <!-- test -->
-    <dependency>
-      <groupId>org.jboss.solder</groupId>
-      <artifactId>solder-impl</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-shared-services</artifactId>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-shared-services</artifactId>
-      <classifier>btm</classifier>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jbpm</groupId>
-      <artifactId>jbpm-runtime-manager</artifactId>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-
     <dependency>
       <groupId>org.hibernate</groupId>
       <artifactId>hibernate-entitymanager</artifactId>
@@ -197,47 +151,70 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.kie.commons</groupId>
-      <artifactId>kie-nio2-fs</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
       <scope>test</scope>
     </dependency>
+
     <dependency>
-      <groupId>org.jboss.spec.javax.ejb</groupId>
-      <artifactId>jboss-ejb-api_3.1_spec</artifactId>
+      <groupId>org.drools</groupId>
+      <artifactId>drools-core</artifactId>
+      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
-  
+    <dependency>
+      <groupId>org.kie</groupId>
+      <artifactId>kie-ci</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
     <!-- test: arquillian -->
     <dependency>
-      <groupId>org.jboss.arquillian.junit</groupId>
-      <artifactId>arquillian-junit-container</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.arquillian.container</groupId>
-      <artifactId>arquillian-weld-se-embedded-1.1</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.arquillian.core</groupId>
-      <artifactId>arquillian-core-api</artifactId>
-      <scope>test</scope>
+    	<groupId>org.jbpm</groupId>
+    	<artifactId>jbpm-shared-services</artifactId>
     </dependency>
   </dependencies>
 
   <build>
-    <plugins>    
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+        <filtering>false</filtering>
+      </testResource>
+      <testResource>
+        <directory>src/test/filtered-resources</directory>
+        <filtering>true</filtering>
+      </testResource>
+    </testResources>
+    <plugins>
       <plugin>
-      <!-- we need to fork always as we have mixture of both arquillian tests and regular 
-    and to avoid clashing between them as both need to setup data source and bound it to JNDI -->
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <configuration>
+          <instructions>
+            <Bundle-SymbolicName>org.jbpm.kie.services.api.jpa;singleton:=true</Bundle-SymbolicName>
+            <Import-Package>
+              javax.transaction.*;resolution:=optional,
+              *
+            </Import-Package>
+            <Export-Package>
+              org.jbpm.kie.services.api.*,
+            </Export-Package>
+          </instructions>
+        </configuration>
+      </plugin>   
+      <plugin>
+        <!-- we need to fork always as we have mixture of both arquillian tests and regular
+             and to avoid clashing between them as both need to setup data source and bound it to JNDI -->
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <forkMode>always</forkMode>
+          <systemProperties>
+            <kie.maven.settings.custom>
+              ${project.build.testOutputDirectory}/jbpm-kie-services-tests-custom-settings.xml
+            </kie.maven.settings.custom>
+          </systemProperties>
         </configuration>
       </plugin>
       <plugin>

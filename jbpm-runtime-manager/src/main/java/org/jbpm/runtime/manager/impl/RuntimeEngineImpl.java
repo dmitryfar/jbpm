@@ -18,29 +18,36 @@ package org.jbpm.runtime.manager.impl;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.jbpm.process.audit.JPAAuditLogService;
 import org.kie.api.runtime.KieSession;
+import org.kie.api.runtime.manager.Context;
 import org.kie.api.runtime.manager.RuntimeEngine;
 import org.kie.api.runtime.manager.RuntimeManager;
+import org.kie.api.runtime.manager.audit.AuditService;
 import org.kie.api.task.TaskService;
 import org.kie.internal.runtime.manager.Disposable;
 import org.kie.internal.runtime.manager.DisposeListener;
+import org.kie.internal.runtime.manager.InternalRuntimeManager;
 
 /**
- * Implementation of the <code>RuntimeEngine</code> that additionally implement <code>Disposable</code>
- * interface to allow other components to register listeners on it. Usual case is that listeners
- * and work item handlers might be interested in receiving notification when runtime engine is disposed
- * to deactivate itself too and not receive other events.
- * 
- *
+ * An implementation of the <code>RuntimeEngine</code> that additionally implements the <code>Disposable</code>
+ * interface to allow other components to register listeners on it. The usual case for this is that listeners
+ * and work item handlers might be interested in receiving notification when the runtime engine is disposed of,
+ * in order deactivate themselves too and not receive any other events.
  */
 public class RuntimeEngineImpl implements RuntimeEngine, Disposable {
 
+	private RuntimeEngineInitlializer initializer;
+	private Context<?> context;
+	
     private KieSession ksession;
     private TaskService taskService;
+    private AuditService auditService;
     
     private RuntimeManager manager;
     
     private boolean disposed = false;
+    private boolean afterCompletion = false;
     
     private List<DisposeListener> listeners = new CopyOnWriteArrayList<DisposeListener>();
     
@@ -49,10 +56,18 @@ public class RuntimeEngineImpl implements RuntimeEngine, Disposable {
         this.taskService = taskService;
     }
     
+    public RuntimeEngineImpl(Context<?> context, RuntimeEngineInitlializer initializer) {
+    	this.context = context;
+        this.initializer = initializer;
+    }
+    
     @Override
     public KieSession getKieSession() {
         if (this.disposed) {
             throw new IllegalStateException("This runtime is already diposed");
+        }
+        if (ksession == null && initializer != null) {
+        	ksession = initializer.initKieSession(context, (InternalRuntimeManager) manager, this);
         }
         return this.ksession;
     }
@@ -61,6 +76,14 @@ public class RuntimeEngineImpl implements RuntimeEngine, Disposable {
     public TaskService getTaskService() {
         if (this.disposed) {
             throw new IllegalStateException("This runtime is already diposed");
+        }
+        if (taskService == null) {
+        	if (initializer != null) {
+        		taskService = initializer.initTaskService(context, (InternalRuntimeManager) manager, this);
+        	}
+        	if (taskService == null) {
+        		throw new UnsupportedOperationException("TaskService was not configured");
+        	}
         }
         return this.taskService;
     }
@@ -72,12 +95,17 @@ public class RuntimeEngineImpl implements RuntimeEngine, Disposable {
             for (DisposeListener listener : listeners) {
                 listener.onDispose(this);
             }
-            try {
-                ksession.dispose();
-            } catch(IllegalStateException e){
-                // do nothing most likely ksession was already disposed
-            } catch (Exception e) {
-                e.printStackTrace();
+            if (ksession != null) {
+	            try {
+	                ksession.dispose();
+	            } catch(IllegalStateException e){
+	                // do nothing most likely ksession was already disposed
+	            } catch (Exception e) {
+	                e.printStackTrace();
+	            }
+            }
+            if (auditService != null) {
+            	auditService.dispose();
             }
             this.disposed = true;
         }
@@ -103,4 +131,32 @@ public class RuntimeEngineImpl implements RuntimeEngine, Disposable {
         return disposed;
     }
 
+	@Override
+	public AuditService getAuditService() {	
+		if (auditService == null) {
+			boolean usePersistence = ((InternalRuntimeManager)manager).getEnvironment().usePersistence();
+			if (usePersistence) {
+				auditService = new JPAAuditLogService(getKieSession().getEnvironment());
+			} else {
+				throw new UnsupportedOperationException("AuditService was not configured, supported only with persistence");
+			}
+		}
+		return auditService;
+	}
+	
+	public KieSession internalGetKieSession() {
+		return ksession;
+	}
+
+	public void internalSetKieSession(KieSession ksession) {
+		this.ksession = ksession;
+	}
+
+	public boolean isAfterCompletion() {
+		return afterCompletion;
+	}
+
+	public void setAfterCompletion(boolean completing) {
+		this.afterCompletion = completing;
+	}
 }

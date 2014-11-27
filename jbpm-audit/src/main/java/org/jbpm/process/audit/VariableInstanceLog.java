@@ -27,20 +27,30 @@ import javax.persistence.Id;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
+import javax.persistence.Transient;
 
 import org.jbpm.process.audit.event.AuditEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Entity
 @SequenceGenerator(name="variableInstanceLogIdSeq", sequenceName="VAR_INST_LOG_ID_SEQ", allocationSize=1)
-public class VariableInstanceLog implements Serializable, AuditEvent {
+public class VariableInstanceLog implements Serializable, AuditEvent, org.kie.api.runtime.manager.audit.VariableInstanceLog {
     
+	private static final Logger logger = LoggerFactory.getLogger(VariableInstanceLog.class);
+	
 	private static final long serialVersionUID = 510l;
+	@Transient
+	private final int VARIABLE_LOG_LENGTH = Integer.parseInt(System.getProperty("org.jbpm.var.log.length", "255"));
+
+	// entity fields
 	
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO, generator="variableInstanceLogIdSeq")
 	private long id;
     
     private long processInstanceId;
+    
     private String processId;
     
     @Temporal(TemporalType.TIMESTAMP)
@@ -48,11 +58,16 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
     private Date date;
     
     private String variableInstanceId;
+    
     private String variableId;
+    
     private String value;
+    
     private String oldValue;
     
     private String externalId;
+    
+	// constructors
     
     public VariableInstanceLog() {
     }
@@ -72,15 +87,15 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
     	return id;
     }
     
-    void setId(long id) {
+    public void setId(long id) {
 		this.id = id;
 	}
 
-    public long getProcessInstanceId() {
+    public Long getProcessInstanceId() {
         return processInstanceId;
     }
     
-	void setProcessInstanceId(long processInstanceId) {
+	public void setProcessInstanceId(long processInstanceId) {
 		this.processInstanceId = processInstanceId;
 	}
 
@@ -88,7 +103,7 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
         return processId;
     }
     
-	void setProcessId(String processId) {
+	public void setProcessId(String processId) {
 		this.processId = processId;
 	}
 
@@ -113,8 +128,9 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
 	}
 
 	public void setValue(String value) {
-		if (value != null && value.length() > 255) {
-			value = value.substring(0, 255);
+		if (value != null && value.length() > VARIABLE_LOG_LENGTH) {
+			value = value.substring(0, VARIABLE_LOG_LENGTH);
+			logger.warn("Variable content was trimmed as it was too long (more than {} characters)", VARIABLE_LOG_LENGTH);
 		}
 		this.value = value;
 	}
@@ -124,8 +140,9 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
     }
 
     public void setOldValue(String oldValue) {
-        if (oldValue != null && oldValue.length() > 255) {
-            oldValue = oldValue.substring(0, 255);
+        if (oldValue != null && oldValue.length() > VARIABLE_LOG_LENGTH) {
+            oldValue = oldValue.substring(0, VARIABLE_LOG_LENGTH);
+            logger.warn("Variable content was trimmed as it was too long (more than {} characters)", VARIABLE_LOG_LENGTH);
         }
         this.oldValue = oldValue;
     }
@@ -134,7 +151,7 @@ public class VariableInstanceLog implements Serializable, AuditEvent {
         return date;
     }
     
-	void setDate(Date date) {
+	public void setDate(Date date) {
 		this.date = date;
 	}
 	

@@ -77,7 +77,7 @@ public class ProcessHumanTaskTest extends JbpmJUnitBaseTestCase {
         // let john execute Task 1
         List<TaskSummary> list = taskService.getTasksAssignedAsPotentialOwner("john", "en-UK");
         TaskSummary task = list.get(0);
-        assertEquals("mary", task.getCreatedBy().getId());
+        assertEquals("mary", task.getCreatedById());
         logger.info("John is executing task {}", task.getName());
         taskService.start(task.getId(), "john");
         taskService.complete(task.getId(), "john", null);
@@ -87,7 +87,7 @@ public class ProcessHumanTaskTest extends JbpmJUnitBaseTestCase {
         // let mary execute Task 2
         list = taskService.getTasksAssignedAsPotentialOwner("mary", "en-UK");
         task = list.get(0);
-        assertEquals("krisv", task.getCreatedBy().getId());
+        assertEquals("krisv", task.getCreatedById());
         logger.info("Mary is executing task {}", task.getName());
         taskService.start(task.getId(), "mary");
         taskService.complete(task.getId(), "mary", null);
@@ -98,7 +98,7 @@ public class ProcessHumanTaskTest extends JbpmJUnitBaseTestCase {
     
     @Test
     public void testProcessRequestStrategy() {
-        createRuntimeManager(Strategy.REQUEST, "humantask.bpmn");
+        createRuntimeManager(Strategy.REQUEST, "manager", "humantask.bpmn");
         RuntimeEngine runtimeEngine = getRuntimeEngine();
         KieSession ksession = runtimeEngine.getKieSession();
         TaskService taskService = runtimeEngine.getTaskService();
@@ -130,7 +130,7 @@ public class ProcessHumanTaskTest extends JbpmJUnitBaseTestCase {
 
     @Test
     public void testProcessProcessInstanceStrategy() {
-        RuntimeManager manager = createRuntimeManager(Strategy.PROCESS_INSTANCE, "humantask.bpmn");
+        RuntimeManager manager = createRuntimeManager(Strategy.PROCESS_INSTANCE, "manager", "humantask.bpmn");
         RuntimeEngine runtimeEngine = getRuntimeEngine(ProcessInstanceIdContext.get());
         KieSession ksession = runtimeEngine.getKieSession();
         TaskService taskService = runtimeEngine.getTaskService();
@@ -167,5 +167,6 @@ public class ProcessHumanTaskTest extends JbpmJUnitBaseTestCase {
 
         assertNodeTriggered(processInstance.getId(), "End");
         assertProcessInstanceCompleted(processInstance.getId(), ksession);
+        manager.disposeRuntimeEngine(runtimeEngine);
     }
 }
